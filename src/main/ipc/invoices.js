@@ -160,10 +160,28 @@ module.exports = {
     return { rows, totals };
   },
 
-  'invoices:get': async ({ id }) => {
-    const loaded = await loadInvoice(db, id);
-    const settings = await readSettings(db);
-    return Object.assign(loaded, { defaultBankDetails: defaultBankBlock(settings) });
+  'invoices:get': async ({ id, withOptions }) => {
+    // The edit dialog wants the dropdown lists as well; the viewer does not.
+    const [loaded, settings, clients, projects] = await Promise.all([
+      loadInvoice(db, id),
+      readSettings(db),
+      withOptions
+        ? db.query(`SELECT id, name, company, gstin, state
+                    FROM clients WHERE is_active = 1 ORDER BY name ASC`)
+        : Promise.resolve(null),
+      withOptions
+        ? db.query(`
+            SELECT p.id, p.title, p.amount, p.amount_paid, p.status, p.payment_status,
+                   p.client_id, c.name AS client_name
+            FROM projects p LEFT JOIN clients c ON c.id = p.client_id
+            WHERE p.status <> 'cancelled' ORDER BY p.id DESC`)
+        : Promise.resolve(null)
+    ]);
+    return Object.assign(loaded, {
+      defaultBankDetails: defaultBankBlock(settings),
+      clients,
+      projects
+    });
   },
 
   /**
@@ -172,20 +190,42 @@ module.exports = {
    * project can be pulled in as extra lines.
    */
   'invoices:newDraft': async ({ clientId, projectId, includeProjectExpenses } = {}) => {
-    const settings = await readSettings(db);
     const invoiceDate = today();
-    const { number } = await peekNextNumber(db, invoiceDate);
 
-    let client = null;
-    let project = null;
+    /*
+     * Everything the editor needs, in as few round trips as possible.
+     *
+     * This runs the moment "New invoice" is pressed, so its cost is what the
+     * user experiences as the dialog being slow to appear. The settings, the
+     * next invoice number, the project and the dropdown lists do not depend on
+     * one another, so they are fetched together; only the client lookup has to
+     * wait, because a project supplies the client when one was not named.
+     */
+    const [settings, numbering, project, clientOptions] = await Promise.all([
+      readSettings(db),
+      peekNextNumber(db, invoiceDate),
+      projectId
+        ? db.one('SELECT * FROM projects WHERE id = ?', [projectId])
+        : Promise.resolve(null),
+      db.query(`SELECT id, name, company, gstin, state
+                FROM clients WHERE is_active = 1 ORDER BY name ASC`)
+    ]);
+    const number = numbering.number;
 
-    if (projectId) {
-      project = await db.one('SELECT * FROM projects WHERE id = ?', [projectId]);
-      if (project && project.client_id) clientId = project.client_id;
-    }
-    if (clientId) {
-      client = await db.one('SELECT * FROM clients WHERE id = ?', [clientId]);
-    }
+    if (project && project.client_id) clientId = project.client_id;
+
+    const [client, projectOptions] = await Promise.all([
+      clientId
+        ? db.one('SELECT * FROM clients WHERE id = ?', [clientId])
+        : Promise.resolve(null),
+      db.query(`
+        SELECT p.id, p.title, p.amount, p.amount_paid, p.status, p.payment_status,
+               p.client_id, c.name AS client_name
+        FROM projects p LEFT JOIN clients c ON c.id = p.client_id
+        WHERE p.status <> 'cancelled'
+          ${clientId ? 'AND p.client_id = ?' : ''}
+        ORDER BY p.id DESC`, clientId ? [clientId] : [])
+    ]);
 
     /*
      * Decide the GST treatment for the draft.
@@ -275,6 +315,10 @@ module.exports = {
       items,
       client,
       project,
+      // The editor used to fetch these separately, which meant a second trip
+      // to the database before the dialog could be drawn.
+      clients: clientOptions,
+      projects: projectOptions,
       // Shown in the editor so the payment details can be adjusted per invoice.
       defaultBankDetails: defaultBankBlock(settings)
     };

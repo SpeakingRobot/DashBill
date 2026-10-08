@@ -828,3 +828,8 @@ table.items-table .c-custom { width: 110px; }
 .brand-name {
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+
+/* A dialog or action is being prepared: show it, and swallow stray clicks so a
+   second one cannot be started on top of the first. */
+body.is-working, body.is-working * { cursor: progress !important; }
+body.is-working .btn { pointer-events: none; }

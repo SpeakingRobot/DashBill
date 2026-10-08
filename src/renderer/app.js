@@ -72,13 +72,41 @@
   /**
    * Navigate. `params` is handed to the page and also drives deep actions,
    * e.g. go('invoices', { action: 'new', projectId: 4 }).
+   *
+   * Only one navigation runs at a time. A page render is asynchronous, so two
+   * overlapping ones both write to the same `#view` and the slower one lands
+   * last — leaving the title from one page above the contents of another.
+   * Over a cloud database that is easy to trigger just by clicking through the
+   * sidebar quickly. A request that arrives mid-render is therefore held, and
+   * only the most recent one runs afterwards, so you always end up on the page
+   * you asked for last.
    */
+  let navInFlight = false;
+  let pendingNav = null;
+
   async function go(page, params) {
     const definition = window.Pages[page];
     if (!definition) {
       toast('Unknown page: ' + page, 'error');
       return;
     }
+    if (navInFlight) {
+      pendingNav = [page, params];
+      return;
+    }
+    navInFlight = true;
+    try {
+      await navigate(definition, page, params);
+    } finally {
+      navInFlight = false;
+      const next = pendingNav;
+      pendingNav = null;
+      if (next) await go(next[0], next[1]);
+    }
+  }
+  App.go = go;
+
+  async function navigate(definition, page, params) {
     App.current = page;
     App.params = params || {};
 
@@ -109,7 +137,6 @@
     }
     refreshCounts();
   }
-  App.go = go;
 
   async function refreshCounts() {
     const counts = await apiSafe('dashboard:counts');

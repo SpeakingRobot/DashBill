@@ -1,7 +1,7 @@
 {
   "name": "dashbill",
   "productName": "DashBill",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "DashBill - budget, project and GST invoicing software for Windows. Brand it with your own business name and logo; keeps its books in your own TiDB Cloud or local MySQL database.",
   "author": {
     "name": "Samuel Fernandes"

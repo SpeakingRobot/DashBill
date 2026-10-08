@@ -36,12 +36,18 @@
         '<button class="btn" data-action="new">' + icon('plus', 15) + 'New project</button>';
       bindActions(ctx.actions, { new: () => editor(ctx, null) });
 
-      clients = await api('clients:options');
       if (ctx.params.clientId) state.clientId = String(ctx.params.clientId);
+
+      // Independent of each other, so both are asked for at once.
+      const [clientList, rows] = await Promise.all([
+        api('clients:options'),
+        fetchProjects()
+      ]);
+      clients = clientList;
 
       ctx.el.innerHTML = filters() + '<div id="proj-body">' + window.UI.loading(6) + '</div>';
       wireFilters(ctx);
-      await load(ctx);
+      renderProjects(ctx, rows);
 
       if (ctx.params.action === 'new') {
         editor(ctx, null, { client_id: ctx.params.clientId || '' });
@@ -86,16 +92,24 @@
     }, 240));
   }
 
-  async function load(ctx) {
-    const host = document.getElementById('proj-body');
-    host.innerHTML = window.UI.loading(6);
-
-    const rows = await api('projects:list', {
+  /** Just the data, so the caller can fetch it alongside something else. */
+  function fetchProjects() {
+    return api('projects:list', {
       search: state.search || undefined,
       status: state.status || undefined,
       paymentStatus: state.paymentStatus || undefined,
       clientId: state.clientId || undefined
     });
+  }
+
+  async function load(ctx) {
+    const host = document.getElementById('proj-body');
+    host.innerHTML = window.UI.loading(6);
+    renderProjects(ctx, await fetchProjects());
+  }
+
+  function renderProjects(ctx, rows) {
+    const host = document.getElementById('proj-body');
 
     const value = rows.reduce((sum, row) => sum + num(row.amount), 0);
     const received = rows.reduce((sum, row) => sum + num(row.amount_paid), 0);

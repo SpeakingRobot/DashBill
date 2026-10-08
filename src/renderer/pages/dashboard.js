@@ -25,8 +25,10 @@
         newInvoice: () => ctx.go('invoices', { action: 'new' })
       });
 
-      const data = await api('dashboard:summary', { months: 12 });
-      const backup = await apiSafe('backup:status');
+      const [data, backup] = await Promise.all([
+        api('dashboard:summary', { months: 12 }),
+        apiSafe('backup:status')
+      ]);
       ctx.el.innerHTML = view(data, backup);
       wire(ctx, data, backup);
     }

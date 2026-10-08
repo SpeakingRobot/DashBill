@@ -51,6 +51,9 @@
 
   const state = { search: '', status: '', clientId: '', from: '', to: '' };
   let clients = [];
+  // Filled in by whichever call last returned the project list, so opening the
+  // editor does not have to ask for it again.
+  let projectOptionsCache = null;
 
   window.Pages.invoices = {
     title: 'Invoices',
@@ -67,13 +70,20 @@
         })
       });
 
-      clients = await api('clients:options');
       if (ctx.params.status) state.status = ctx.params.status;
       if (ctx.params.clientId) state.clientId = String(ctx.params.clientId);
 
+      // The client list and the invoices themselves are independent, so they
+      // are fetched together rather than one waiting on the other.
+      const [clientList, data] = await Promise.all([
+        api('clients:options'),
+        fetchList()
+      ]);
+      clients = clientList;
+
       ctx.el.innerHTML = filters() + '<div id="inv-body">' + window.UI.loading(6) + '</div>';
       wireFilters(ctx);
-      await load(ctx);
+      renderList(ctx, data);
 
       if (ctx.params.action === 'new') {
         editor(ctx, {
@@ -126,18 +136,25 @@
     }, 240));
   }
 
-  async function load(ctx) {
-    const host = document.getElementById('inv-body');
-    host.innerHTML = window.UI.loading(6);
-
-    const data = await api('invoices:list', {
+  /** Just the data, so the caller can fetch it alongside something else. */
+  function fetchList() {
+    return api('invoices:list', {
       search: state.search || undefined,
       status: state.status || undefined,
       clientId: state.clientId || undefined,
       from: state.from || undefined,
       to: state.to || undefined
     });
+  }
 
+  async function load(ctx) {
+    const host = document.getElementById('inv-body');
+    host.innerHTML = window.UI.loading(6);
+    renderList(ctx, await fetchList());
+  }
+
+  function renderList(ctx, data) {
+    const host = document.getElementById('inv-body');
     const totals = data.totals || {};
 
     host.innerHTML =
@@ -356,8 +373,10 @@
     let defaultBank = '';
 
     if (isEdit) {
-      const loaded = await apiSafe('invoices:get', { id: opts.id });
+      const loaded = await apiSafe('invoices:get', { id: opts.id, withOptions: 1 });
       if (!loaded) return;
+      if (loaded.clients) clients = loaded.clients;
+      if (loaded.projects) projectOptionsCache = loaded.projects;
       invoice = loaded.invoice;
       items = loaded.items.length ? loaded.items : [blankItem()];
       invoice.round_off_enabled = true;
@@ -376,13 +395,15 @@
       invoice = draft.invoice;
       items = draft.items.length ? draft.items : [blankItem()];
       defaultBank = draft.defaultBankDetails || '';
+      if (draft.clients) clients = draft.clients;
+      if (draft.projects) projectOptionsCache = draft.projects;
     }
 
     // Which columns this invoice prints. Changing them re-renders the table.
     const columns = readColumns(invoice.column_config);
 
-    const projects = await api('projects:options',
-      invoice.client_id ? { clientId: invoice.client_id } : {});
+    // Already supplied by the call above — no second round trip.
+    const projects = projectOptionsCache || [];
 
     const handle = modal({
       title: isEdit ? 'Edit invoice ' + invoice.invoice_number : 'New invoice',
@@ -547,14 +568,16 @@
     // Choosing a client refreshes the project list and the frozen address block.
     const clientSelect = body.querySelector('[data-field="client_id"]');
     clientSelect.addEventListener('change', async () => {
-      const list = await api('projects:options',
-        clientSelect.value ? { clientId: clientSelect.value } : {});
-      body.querySelector('[data-field="project_id"]').innerHTML =
-        projectOptions(list, '');
-
-      if (!clientSelect.value) return;
+      if (!clientSelect.value) {
+        body.querySelector('[data-field="project_id"]').innerHTML =
+          projectOptions(projectOptionsCache || [], '');
+        return;
+      }
+      // One call: the draft carries the project list for this client with it.
       const fresh = await apiSafe('invoices:newDraft', { clientId: clientSelect.value });
       if (!fresh) return;
+      body.querySelector('[data-field="project_id"]').innerHTML =
+        projectOptions(fresh.projects || [], '');
       body.querySelector('[data-field="bill_to_name"]').value = fresh.invoice.bill_to_name || '';
       body.querySelector('[data-field="bill_to_address"]').value = fresh.invoice.bill_to_address || '';
       body.querySelector('[data-field="bill_to_gstin"]').value = fresh.invoice.bill_to_gstin || '';

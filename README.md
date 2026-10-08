@@ -9,7 +9,7 @@ Brand it with your own business name and logo. Keeps its books in a database
 
 ### [⬇️ Download for Windows](https://drive.google.com/file/d/1QND84fW9p9J6Ah_6qDpyZO9jvM1qNu1j/view?usp=sharing)
 
-`DashBill-Setup-1.2.0.exe` · 79 MB · Windows 10/11 64-bit
+`DashBill-Setup-1.3.0.exe` · 79 MB · Windows 10/11 64-bit
 
 [Install guide](#1-download-and-install) ·
 [First-run setup](#2-first-run-setup) ·
@@ -54,23 +54,23 @@ Brand it with your own business name and logo. Keeps its books in a database
 
 <!-- DOWNLOAD_LINK — update this block when a new version is released -->
 
-### ⬇️ [**Download DashBill-Setup-1.2.0.exe**](https://drive.google.com/file/d/1QND84fW9p9J6Ah_6qDpyZO9jvM1qNu1j/view?usp=sharing) &nbsp;·&nbsp; 79 MB
+### ⬇️ [**Download DashBill-Setup-1.3.0.exe**](https://drive.google.com/file/d/1QND84fW9p9J6Ah_6qDpyZO9jvM1qNu1j/view?usp=sharing) &nbsp;·&nbsp; 79 MB
 
 On the Google Drive page, press the **download icon** (⬇) in the top-right
 corner. Drive cannot virus-scan a file this large, so it will warn
-*"DashBill-Setup-1.2.0.exe is too big for Google to scan for viruses"* — press
+*"DashBill-Setup-1.3.0.exe is too big for Google to scan for viruses"* — press
 **Download anyway**. That message is about the file's size, not its contents.
 
 You can also build the installer yourself from this repository — see
 [Building from source](#7-building-from-source).
 
-**You need exactly one file: `DashBill-Setup-1.2.0.exe`.** It is completely
+**You need exactly one file: `DashBill-Setup-1.3.0.exe`.** It is completely
 self-contained. There are no companion files, no runtime to install first, and
 nothing to unzip.
 
 ### Install
 
-1. Double-click **`DashBill-Setup-1.2.0.exe`**.
+1. Double-click **`DashBill-Setup-1.3.0.exe`**.
 2. Windows will almost certainly show a blue box:
    **_"Windows protected your PC"_**. This is expected — see below.
 3. Choose where to install (the default is fine) and press **Install**.
@@ -427,7 +427,7 @@ npm run dist
 That produces:
 
 ```
-dist\DashBill-Setup-1.2.0.exe
+dist\DashBill-Setup-1.3.0.exe
 ```
 
 **That single file is what you publish.** See

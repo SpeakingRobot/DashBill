@@ -489,6 +489,37 @@
   }
 
   /**
+   * Run a click handler, ignoring any further clicks until it has finished.
+   *
+   * Opening a dialog is asynchronous — the invoice editor in particular has to
+   * fetch a draft before it can render. Over a cloud database that takes long
+   * enough that it looks as though nothing happened, so the button gets
+   * clicked again and a second dialog opens behind the first. The top one
+   * holds a locked backdrop, and the window appears frozen until you escape
+   * out of every layer.
+   *
+   * One latch for the whole window prevents it: the second click is dropped,
+   * and the cursor shows the first one is still working.
+   */
+  let actionInFlight = false;
+
+  async function runExclusive(fn, args) {
+    if (actionInFlight) return undefined;
+    actionInFlight = true;
+    document.body.classList.add('is-working');
+    try {
+      return await fn.apply(null, args || []);
+    } catch (err) {
+      console.error(err);
+      toast(err && err.message ? err.message : 'Something went wrong.', 'error');
+      return undefined;
+    } finally {
+      actionInFlight = false;
+      document.body.classList.remove('is-working');
+    }
+  }
+
+  /**
    * Wire row clicks after a table rendered by `table()` is in the DOM.
    * The handler is skipped when the click came from a button or a link.
    */
@@ -497,7 +528,7 @@
       tr.addEventListener('click', (event) => {
         if (event.target.closest('button, a, input, select, label')) return;
         const index = Number(tr.getAttribute('data-index'));
-        handler(rows[index], index, event);
+        runExclusive(handler, [rows[index], index, event]);
       });
     });
   }
@@ -523,7 +554,7 @@
       if (!handler) return;
       event.preventDefault();
       event.stopPropagation();
-      handler(button.dataset, button, event);
+      runExclusive(handler, [button.dataset, button, event]);
     };
     container.__uiActionListener = listener;
     container.addEventListener('click', listener);
@@ -753,7 +784,8 @@
     toast, modal, confirm, alertBox,
     readForm, fillForm, options, enumOptions, PAYMENT_METHODS, methodLabel,
     badge, statusBadge, PROJECT_STATUS, PAYMENT_STATUS, INVOICE_STATUS,
-    table, bindRows, bindActions, closeAllModals, emptyState, loading, card, stat, delta, barList,
+    table, bindRows, bindActions, runExclusive, closeAllModals, emptyState, loading,
+    card, stat, delta, barList,
     barChart, debounce, busy, copyToClipboard, icon
   };
 })();

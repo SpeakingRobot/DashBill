@@ -50,8 +50,15 @@ function poolOptions(dbConfig) {
     ...baseOptions(dbConfig),
     database: dbConfig.database,
     waitForConnections: true,
-    connectionLimit: 8,
+    // The dashboard and the reports fire a dozen independent queries at once.
+    // A small pool would make them queue in twos and threes and undo the
+    // benefit, so there is room for a whole screen's worth in flight.
+    connectionLimit: 16,
     queueLimit: 0,
+    // A cloud cluster drops idle connections; letting the pool retire them
+    // itself avoids a stall on the first query after a quiet spell.
+    idleTimeout: 60000,
+    maxIdle: 6,
     enableKeepAlive: true,
     keepAliveInitialDelay: 10000,
     // DECIMAL columns come back as JS numbers rather than strings, so money
