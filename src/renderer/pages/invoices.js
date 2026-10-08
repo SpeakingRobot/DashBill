@@ -49,11 +49,20 @@
     };
   }
 
-  const state = { search: '', status: '', clientId: '', from: '', to: '' };
+  /*
+   * Like Projects, this page does two jobs. The first tab is where bills are
+   * raised, edited, paid and deleted. The second is read-only: who owes you,
+   * and how late they are. Nothing on it can be pressed by accident.
+   */
+  const state = { tab: 'list', search: '', status: '', clientId: '', from: '', to: '' };
   let clients = [];
   // Filled in by whichever call last returned the project list, so opening the
   // editor does not have to ask for it again.
   let projectOptionsCache = null;
+  // Every invoice matching the client/date/search filters. Both tabs read
+  // from this one fetch; the status filter is applied in the window, so the
+  // money-owed view always sees the whole picture.
+  let currentData = { rows: [], totals: {} };
 
   window.Pages.invoices = {
     title: 'Invoices',
@@ -70,8 +79,9 @@
         })
       });
 
-      if (ctx.params.status) state.status = ctx.params.status;
+      if (ctx.params.status) { state.status = ctx.params.status; state.tab = 'list'; }
       if (ctx.params.clientId) state.clientId = String(ctx.params.clientId);
+      if (ctx.params.tab) state.tab = ctx.params.tab;
 
       // The client list and the invoices themselves are independent, so they
       // are fetched together rather than one waiting on the other.
@@ -81,9 +91,26 @@
       ]);
       clients = clientList;
 
-      ctx.el.innerHTML = filters() + '<div id="inv-body">' + window.UI.loading(6) + '</div>';
-      wireFilters(ctx);
-      renderList(ctx, data);
+      ctx.el.innerHTML =
+        '<div class="tabs">' +
+          pageTab('list', 'Invoices') +
+          pageTab('owed', 'Money owed') +
+        '</div>' +
+        '<div id="inv-body">' + window.UI.loading(6) + '</div>';
+
+      ctx.el.querySelectorAll('[data-tab]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const next = button.getAttribute('data-tab');
+          if (next === state.tab) return;
+          state.tab = next;
+          ctx.el.querySelectorAll('[data-tab]').forEach((b) => {
+            b.classList.toggle('active', b.getAttribute('data-tab') === state.tab);
+          });
+          renderTab(ctx, currentData);
+        });
+      });
+
+      renderTab(ctx, data);
 
       if (ctx.params.action === 'new') {
         editor(ctx, {
@@ -94,6 +121,17 @@
       if (ctx.params.action === 'open' && ctx.params.id) viewer(ctx, ctx.params.id);
     }
   };
+
+  function pageTab(id, label) {
+    return '<button data-tab="' + id + '"' +
+      (state.tab === id ? ' class="active"' : '') + '>' + esc(label) + '</button>';
+  }
+
+  function renderTab(ctx, data) {
+    currentData = data;
+    if (state.tab === 'owed') return owedTab(ctx, data);
+    return listTab(ctx, data);
+  }
 
   function filters() {
     return '<div class="filters">' +
@@ -119,8 +157,10 @@
   }
 
   function wireFilters(ctx) {
+    // The status filter is the one applied in the window, so it needs no fetch.
     document.getElementById('v-status').addEventListener('change', (event) => {
-      state.status = event.target.value; load(ctx);
+      state.status = event.target.value;
+      renderTab(ctx, currentData);
     });
     document.getElementById('v-client').addEventListener('change', (event) => {
       state.clientId = event.target.value; load(ctx);
@@ -136,11 +176,10 @@
     }, 240));
   }
 
-  /** Just the data, so the caller can fetch it alongside something else. */
+  /** Everything matching the filters the server applies. */
   function fetchList() {
     return api('invoices:list', {
       search: state.search || undefined,
-      status: state.status || undefined,
       clientId: state.clientId || undefined,
       from: state.from || undefined,
       to: state.to || undefined
@@ -149,15 +188,44 @@
 
   async function load(ctx) {
     const host = document.getElementById('inv-body');
-    host.innerHTML = window.UI.loading(6);
-    renderList(ctx, await fetchList());
+    if (host) host.innerHTML = window.UI.loading(6);
+    renderTab(ctx, await fetchList());
   }
 
-  function renderList(ctx, data) {
-    const host = document.getElementById('inv-body');
-    const totals = data.totals || {};
+  const AWAITING = ['sent', 'partially_paid'];
 
-    host.innerHTML =
+  function matchesStatus(row) {
+    if (!state.status) return true;
+    if (state.status === 'outstanding') return AWAITING.includes(row.status);
+    if (state.status === 'overdue') {
+      return AWAITING.includes(row.status) && num(row.days_overdue) > 0;
+    }
+    return row.status === state.status;
+  }
+
+  /** Totals for whatever is on screen, so the cards follow the filter. */
+  function sumRows(rows) {
+    return rows.reduce((acc, row) => {
+      acc.count += 1;
+      acc.billed += num(row.total);
+      acc.received += num(row.amount_paid);
+      if (AWAITING.includes(row.status)) acc.outstanding += num(row.balance);
+      acc.gst_collected += num(row.gst_amount) + num(row.cgst_amount) +
+        num(row.sgst_amount) + num(row.igst_amount);
+      return acc;
+    }, { count: 0, billed: 0, received: 0, outstanding: 0, gst_collected: 0 });
+  }
+
+  // =======================================================================
+  // Tab 1 — Invoices. The working list: raise, edit, pay, delete.
+  // =======================================================================
+
+  function listTab(ctx, data) {
+    const host = document.getElementById('inv-body');
+    const rows = (data.rows || []).filter(matchesStatus);
+    const totals = sumRows(rows);
+
+    host.innerHTML = filters() +
       '<div class="grid c4 mb14">' +
         stat({ label: 'Billed', value: fmt.moneyShort(totals.billed), accent: true,
           sub: '<span class="faint">' + num(totals.count) + ' invoice' +
@@ -220,7 +288,7 @@
             '" data-number="' + esc(row.invoice_number) + '" data-paid="' +
             num(row.amount_paid) + '" title="Delete">' + icon('trash', 13) + '</button>' }
         ], {
-          rows: data.rows,
+          rows,
           onRowClick: true,
           footer: data.rows.length
             ? '<tr><td colspan="4">Totals</td><td class="num">' + fmt.money(totals.billed) +
@@ -240,7 +308,8 @@
         })
       });
 
-    bindRows(host, data.rows, (row) => viewer(ctx, row.id));
+    wireFilters(ctx);
+    bindRows(host, rows, (row) => viewer(ctx, row.id));
     bindActions(host, {
       new: () => editor(ctx, {}),
       edit: (ds) => editor(ctx, { id: Number(ds.id) }),
@@ -281,6 +350,140 @@
         }
       }
     });
+  }
+
+  // =========================================================================
+  // Tab 2 — Money owed. Read-only: who owes you, and how late they are.
+  // =========================================================================
+
+  /**
+   * How late an unpaid invoice is.
+   *
+   * The usual accounting buckets, in the order a person would chase them.
+   * `days_overdue` is worked out by the database and is zero for anything not
+   * yet due, so an invoice with no due date at all lands in "not due yet"
+   * rather than being called late on a date that was never agreed.
+   */
+  const AGEING = [
+    { id: 'due', label: 'Not due yet', hint: 'inside the agreed terms',
+      test: (d) => d <= 0 },
+    { id: 'a30', label: '1 to 30 days late', hint: 'worth a reminder',
+      test: (d) => d >= 1 && d <= 30 },
+    { id: 'a60', label: '31 to 60 days late', hint: 'worth a phone call',
+      test: (d) => d >= 31 && d <= 60 },
+    { id: 'a90', label: 'Over 60 days late', hint: 'needs chasing properly',
+      test: (d) => d > 60 }
+  ];
+
+  function owedTab(ctx, data) {
+    const host = document.getElementById('inv-body');
+    const owing = (data.rows || []).filter((row) =>
+      AWAITING.includes(row.status) && num(row.balance) > 0.009);
+
+    const total = owing.reduce((sum, row) => sum + num(row.balance), 0);
+    const late = owing.filter((row) => num(row.days_overdue) > 0);
+    const lateTotal = late.reduce((sum, row) => sum + num(row.balance), 0);
+    const oldest = owing.reduce((max, row) => Math.max(max, num(row.days_overdue)), 0);
+
+    // Who owes it, worst first.
+    const byClient = [];
+    const index = {};
+    owing.forEach((row) => {
+      const name = row.client_name || row.bill_to_name || 'No client';
+      if (!index[name]) {
+        index[name] = { name, balance: 0, count: 0, worst: 0 };
+        byClient.push(index[name]);
+      }
+      index[name].balance += num(row.balance);
+      index[name].count += 1;
+      index[name].worst = Math.max(index[name].worst, num(row.days_overdue));
+    });
+    byClient.sort((a, b) => b.balance - a.balance);
+
+    const buckets = AGEING
+      .map((bucket) => Object.assign({}, bucket, {
+        rows: owing.filter((row) => bucket.test(num(row.days_overdue)))
+      }))
+      .filter((bucket) => bucket.rows.length);
+
+    host.innerHTML =
+      '<div class="grid c4 mb14">' +
+        stat({ label: 'Owed to you', value: fmt.moneyShort(total), accent: true,
+          sub: '<span class="faint">' + owing.length + ' unpaid invoice' +
+            (owing.length === 1 ? '' : 's') + '</span>' }) +
+        stat({ label: 'Past the due date', value: fmt.moneyShort(lateTotal), small: true,
+          sub: late.length
+            ? '<span class="delta down">' + late.length + ' invoice' +
+              (late.length === 1 ? '' : 's') + '</span>'
+            : '<span class="faint">none late</span>' }) +
+        stat({ label: 'Longest wait', small: true,
+          value: oldest > 0 ? fmt.number(oldest) + 'd' : '—',
+          sub: oldest > 0
+            ? '<span class="faint">since it fell due</span>'
+            : '<span class="faint">all within terms</span>' }) +
+        stat({ label: 'Clients owing', value: fmt.number(byClient.length), small: true,
+          sub: byClient.length
+            ? '<span class="faint">top: ' + esc(byClient[0].name) + '</span>'
+            : '<span class="faint">nobody</span>' }) +
+      '</div>' +
+
+      (owing.length
+        ? byClient.length > 1
+          ? '<div class="mb14">' + card({
+            title: 'Who owes you',
+            hint: 'largest first',
+            flush: true,
+            body: table([
+              { label: 'Client', render: (row) =>
+                '<div class="row-title">' + esc(row.name) + '</div>' },
+              { label: 'Invoices', render: (row) =>
+                row.count + ' unpaid' },
+              { label: 'Longest wait', render: (row) => row.worst > 0
+                ? '<span class="neg">' + row.worst + ' days late</span>'
+                : '<span class="faint">within terms</span>' },
+              { label: 'Owed', className: 'num strong',
+                render: (row) => fmt.money(row.balance) }
+            ], { rows: byClient })
+          }) + '</div>'
+          : ''
+        : window.UI.emptyState({
+          icon: 'check',
+          title: 'Nothing is owed to you',
+          message: 'Every invoice you have issued has been paid in full. ' +
+            'Anything still awaiting payment would be listed here, grouped by ' +
+            'how long it has been waiting.'
+        })) +
+
+      buckets.map((bucket) => '<div class="mb14">' + card({
+        title: bucket.label,
+        hint: bucket.hint + '  ·  ' +
+          fmt.money(bucket.rows.reduce((s, r) => s + num(r.balance), 0)),
+        flush: true,
+        body: table([
+          { label: 'Number', render: (row) =>
+            '<div class="mono strong">' + esc(row.invoice_number) + '</div>' +
+            '<div class="row-sub">' + fmt.dateShort(row.invoice_date) + '</div>' },
+          { label: 'Billed to', render: (row) =>
+            '<div class="row-title truncate">' +
+            esc(row.client_name || row.bill_to_name || '—') + '</div>' +
+            (row.project_title
+              ? '<div class="row-sub truncate">' + esc(row.project_title) + '</div>' : '') },
+          { label: 'Due', render: (row) => row.due_date
+            ? fmt.dateShort(row.due_date) +
+              (num(row.days_overdue) > 0
+                ? '<div class="row-sub neg">' + row.days_overdue + ' days late</div>' : '')
+            : '<span class="faint">no date agreed</span>' },
+          { label: 'Total', className: 'num', render: (row) => fmt.money(row.total) },
+          { label: 'Paid', className: 'num', render: (row) => num(row.amount_paid)
+            ? fmt.money(row.amount_paid) : '<span class="faint">nothing</span>' },
+          { label: 'Still owed', className: 'num strong', render: (row) =>
+            '<span class="neg">' + fmt.money(row.balance) + '</span>' },
+          { label: 'Status', render: (row) => statusBadge(INVOICE_STATUS, row.status) }
+        ], { rows: bucket.rows, onRowClick: true, compact: true })
+      }) + '</div>').join('');
+
+    // Nothing here changes anything; a row simply opens the bill.
+    bindRows(host, owing, (row) => viewer(ctx, row.id));
   }
 
   function hasFilters() {

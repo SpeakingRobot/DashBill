@@ -167,9 +167,11 @@
       page: 'invoices',
       blurb: 'Raise a professional GST invoice and send it as a PDF.',
       steps: [
-        { page: 'invoices', title: 'Your bills, all in one place',
-          text: 'Every invoice you have issued, what it came to, and how much of ' +
-            'it has been paid.' },
+        { page: 'invoices', selector: '.tabs',
+          title: 'Two tabs: raising bills, and chasing them',
+          text: 'The first is every invoice you have issued, and where you raise, ' +
+            'edit and get paid for them. The second is read-only — who owes ' +
+            'you, grouped by how long they have kept you waiting.' },
         { page: 'invoices', selector: '#topbar-actions [data-action="new"]',
           title: 'A new invoice',
           text: 'Pick the client and the lines fill in from the project if there ' +
@@ -204,6 +206,11 @@
         { q: 'How do I delete an invoice?',
           a: 'The delete button on its row in the list. You are asked to ' +
             'confirm, and any payments recorded against it go with it.' },
+        { q: 'How do I see who still owes me?',
+          a: 'Invoices → Money owed. It lists every unpaid bill grouped by how ' +
+            'late it is — inside terms, one to thirty days, thirty to sixty, ' +
+            'over sixty — with a summary of which client owes the most. ' +
+            'Clicking any row opens that bill.' },
         { q: 'Where does the PDF go?',
           a: 'Wherever you choose when you save it — the app remembers the ' +
             'last folder you used. Nothing is uploaded anywhere.' }
