@@ -60,10 +60,18 @@
     async render(ctx) {
       if (ctx.params.tab) state.tab = ctx.params.tab;
 
-      [categories, projects] = await Promise.all([
+      /*
+       * The dropdown data and the tab's own contents are independent, so they
+       * are asked for together. Only the entries tab is prefetched here: the
+       * other two are cheap and are loaded by loadTab below.
+       */
+      const [categoryList, projectList, entries] = await Promise.all([
         api('expenses:categories'),
-        api('projects:options')
+        api('projects:options'),
+        state.tab === 'entries' ? fetchEntries() : Promise.resolve(null)
       ]);
+      categories = categoryList;
+      projects = projectList;
 
       ctx.el.innerHTML =
         '<div class="tabs">' +
@@ -80,7 +88,14 @@
       });
 
       setActions(ctx);
-      await loadTab(ctx);
+      if (entries) {
+        const host = document.getElementById('exp-body');
+        host.innerHTML = filters() + window.UI.loading(6);
+        wireFilters(ctx);
+        renderEntries(ctx, entries[0], entries[1], entries[2]);
+      } else {
+        await loadTab(ctx);
+      }
 
       if (ctx.params.action === 'new') entryEditor(ctx, null);
     }
@@ -125,11 +140,8 @@
   // Tab 1: expense entries
   // =========================================================================
 
-  async function loadEntries(ctx) {
-    const host = document.getElementById('exp-body');
-    host.innerHTML = filters() + window.UI.loading(6);
-    wireFilters(ctx);
-
+  /** Just the data, so the caller can fetch it alongside anything else. */
+  function fetchEntries() {
     const filter = {
       from: state.range === 'all' ? undefined : state.from,
       to: state.range === 'all' ? undefined : state.to,
@@ -137,12 +149,23 @@
       categoryId: state.categoryId || undefined,
       kind: state.kind || undefined
     };
-
-    const [data, monthly, income] = await Promise.all([
+    return Promise.all([
       api('expenses:list', filter),
       api('expenses:monthly', { months: 12 }),
       api('income:monthly', { months: 12 })
     ]);
+  }
+
+  async function loadEntries(ctx) {
+    const host = document.getElementById('exp-body');
+    host.innerHTML = filters() + window.UI.loading(6);
+    wireFilters(ctx);
+    const [data, monthly, income] = await fetchEntries();
+    renderEntries(ctx, data, monthly, income);
+  }
+
+  function renderEntries(ctx, data, monthly, income) {
+    const host = document.getElementById('exp-body');
 
     const total = num(data.totals.total);
     const count = num(data.totals.entries);

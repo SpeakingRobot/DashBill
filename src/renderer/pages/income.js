@@ -45,16 +45,21 @@
         export: () => apiSafe('backup:exportCsv', { from: rangeFrom(), to: rangeTo() })
       });
 
-      [clients, categories] = await Promise.all([
-        api('clients:options'),
-        api('income:categories')
-      ]);
-
       if (ctx.params.clientId) state.clientId = String(ctx.params.clientId);
+
+      // The dropdown data and the ledger itself are independent, so the whole
+      // page costs one round trip rather than two in sequence.
+      const [clientList, categoryList, [data, monthly]] = await Promise.all([
+        api('clients:options'),
+        api('income:categories'),
+        fetchIncome()
+      ]);
+      clients = clientList;
+      categories = categoryList;
 
       ctx.el.innerHTML = filters() + '<div id="income-body">' + window.UI.loading(7) + '</div>';
       wireFilters(ctx);
-      await load(ctx);
+      renderIncome(ctx, data, monthly);
 
       if (ctx.params.action === 'new') {
         editor(ctx, null, {
@@ -137,11 +142,9 @@
     }, 240));
   }
 
-  async function load(ctx) {
-    const host = document.getElementById('income-body');
-    host.innerHTML = window.UI.loading(7);
-
-    const filter = {
+  /** The current filter, as the list and chart queries want it. */
+  function currentFilter() {
+    return {
       from: rangeFrom() || undefined,
       to: rangeTo() || undefined,
       search: state.search || undefined,
@@ -149,11 +152,25 @@
       category: state.category || undefined,
       source: state.source || undefined
     };
+  }
 
-    const [data, monthly] = await Promise.all([
-      api('income:list', filter),
+  /** Just the data, so the caller can fetch it alongside anything else. */
+  function fetchIncome() {
+    return Promise.all([
+      api('income:list', currentFilter()),
       api('income:monthly', { months: 12 })
     ]);
+  }
+
+  async function load(ctx) {
+    const host = document.getElementById('income-body');
+    host.innerHTML = window.UI.loading(7);
+    const [data, monthly] = await fetchIncome();
+    renderIncome(ctx, data, monthly);
+  }
+
+  function renderIncome(ctx, data, monthly) {
+    const host = document.getElementById('income-body');
 
     const total = num(data.totals.total);
     const count = num(data.totals.entries);
