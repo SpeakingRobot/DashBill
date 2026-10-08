@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <!-- Strict CSP: this window loads nothing from the network, ever. -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline';
+                 img-src 'self' data:; font-src 'self'; frame-src data:; form-action 'none';">
+  <title>DashBill</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- ==================================================================== -->
+<!-- First-run setup. Shown until a database connection succeeds.          -->
+<!-- ==================================================================== -->
+<div id="gate">
+  <div class="gate-inner">
+    <div class="gate-brandmark">
+      <span class="gate-bars"><i></i><i></i><i></i></span>
+    </div>
+    <h1>Welcome to <strong>Dash</strong><span class="light">Bill</span></h1>
+    <p>
+      Budget, project and GST invoicing software that keeps its books in a
+      database you own. Two short steps: tell it where to keep your data, then
+      put your own business name and logo on it. This is a one-time setup
+      &mdash; it is remembered from the next launch onwards.
+    </p>
+
+    <div id="gate-error" class="gate-error hidden"></div>
+
+    <!-- Step 1: where does the data live -->
+    <div class="choice-grid" id="gate-choice">
+      <button class="choice" data-mode="tidb">
+        <span class="choice-ico" id="choice-ico-cloud"></span>
+        <strong>TiDB Cloud</strong>
+        <small>An online MySQL-compatible database. Your books are reachable from
+          any computer you install this on, and the free tier is enough for
+          years of billing data.</small>
+        <span class="choice-tag">Recommended</span>
+      </button>
+      <button class="choice" data-mode="mysql">
+        <span class="choice-ico" id="choice-ico-local"></span>
+        <strong>MySQL on this computer</strong>
+        <small>Entirely offline. Nothing ever leaves this machine &mdash; but your
+          books live only here, so keeping the backups safe is on you.</small>
+      </button>
+    </div>
+
+    <!-- Step 2: the connection form -->
+    <div id="gate-form" class="hidden">
+      <button class="btn ghost sm" id="gate-back" style="margin-bottom:14px">
+        &larr; Choose a different option
+      </button>
+
+      <!-- TiDB-only: paste the whole connection string -->
+      <div class="card mb14" id="gate-paste">
+        <div class="card-head">
+          <h2>Paste your connection string</h2>
+          <span class="spacer"></span>
+          <span class="hint">the quickest way</span>
+        </div>
+        <div class="card-body">
+          <div class="field">
+            <label for="gate-conn">Connection string from TiDB Cloud</label>
+            <textarea id="gate-conn" rows="3" spellcheck="false" class="mono"
+              placeholder="mysql://xxxxxxxx.root:yourpassword@gateway01.region.prod.aws.tidbcloud.com:4000/test"></textarea>
+            <div class="help">
+              In TiDB Cloud open your cluster, press <strong>Connect</strong>, choose
+              <strong>General</strong> as the connect-with option, and copy the
+              connection string it shows. Paste it here and the fields below fill
+              themselves in.
+            </div>
+          </div>
+          <button class="btn secondary" id="gate-fill">Fill in the form from this</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2 id="gate-form-title">Connection details</h2>
+        </div>
+        <div class="card-body">
+          <div class="field-row">
+            <div class="field">
+              <label for="gate-host">Host</label>
+              <input type="text" id="gate-host" spellcheck="false"
+                placeholder="gateway01.ap-northeast-1.prod.aws.tidbcloud.com">
+            </div>
+            <div class="field" style="flex:0 0 110px">
+              <label for="gate-port">Port</label>
+              <input type="number" id="gate-port" value="4000">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label for="gate-user">User name</label>
+              <input type="text" id="gate-user" spellcheck="false" placeholder="xxxxxxxx.root">
+            </div>
+            <div class="field">
+              <label for="gate-password">Password</label>
+              <input type="password" id="gate-password" placeholder="Your database password">
+            </div>
+          </div>
+          <div class="field">
+            <label for="gate-database">Database name</label>
+            <input type="text" id="gate-database" value="anjoy_billings" spellcheck="false">
+            <div class="help">
+              Created automatically on first connection, together with all the tables.
+              Leave this as <code class="inline">anjoy_billings</code> unless you have
+              a reason to change it.
+            </div>
+          </div>
+          <label class="check">
+            <input type="checkbox" id="gate-ssl" checked>
+            <span>Use a secure connection (TLS)
+              <small id="gate-ssl-note">Required by TiDB Cloud and every other hosted
+                database. Leave this on.</small></span>
+          </label>
+        </div>
+        <div class="card-foot">
+          <button class="btn" id="gate-connect">Connect and set up</button>
+          <button class="btn secondary" id="gate-test">Test connection</button>
+          <span style="flex:1 1 auto"></span>
+          <span class="tiny faint" id="gate-status"></span>
+        </div>
+      </div>
+
+      <ol class="gate-steps mt22" id="gate-help"></ol>
+    </div>
+
+    <!-- Step 3: branding. Shown once the database is connected. -->
+    <div id="gate-brand" class="hidden">
+      <div class="banner good">
+        <span id="gate-brand-tick"></span>
+        <div><strong>Connected.</strong> Your database is ready and every table
+          has been created. One last step.</div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">
+          <h2>Make it yours</h2>
+          <span class="spacer"></span>
+          <span class="hint">this is what prints on your invoices</span>
+        </div>
+        <div class="card-body">
+          <div class="brand-setup">
+            <div>
+              <div class="field">
+                <label for="brand-name">Your business name <span class="req">*</span></label>
+                <input type="text" id="brand-name" placeholder="e.g. Anjoy Graphics"
+                       autocomplete="off">
+                <div class="help">Appears in the sidebar, on every invoice and on
+                  the PDF you send to clients.</div>
+              </div>
+              <div class="field">
+                <label for="brand-tagline">Tagline</label>
+                <input type="text" id="brand-tagline"
+                       placeholder="e.g. Design &middot; Print &middot; Branding">
+                <div class="help">Optional, printed small under your name.</div>
+              </div>
+              <div class="field-row">
+                <div class="field">
+                  <label for="brand-prefix">Invoice prefix</label>
+                  <input type="text" id="brand-prefix" value="INV" maxlength="12"
+                         class="mono" spellcheck="false">
+                  <div class="help">Your first bill will be
+                    <span class="mono" id="brand-number-preview">INV/&hellip;/001</span></div>
+                </div>
+                <div class="field">
+                  <label for="brand-appname">Call this software</label>
+                  <input type="text" id="brand-appname" value="DashBill" maxlength="60">
+                  <div class="help">Rename it if you like &mdash; it is your copy.</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="brand-logo">
+              <span class="field-label">Your logo</span>
+              <div class="logo-drop" id="brand-logo-preview">
+                <span class="logo-empty" id="brand-logo-empty">No logo yet</span>
+              </div>
+              <button class="btn secondary block" id="brand-logo-pick" type="button">
+                Choose a logo
+              </button>
+              <button class="btn ghost block hidden" id="brand-logo-clear" type="button">
+                Remove
+              </button>
+              <p class="tiny faint" style="line-height:1.6;margin:10px 0 0">
+                PNG, JPG, SVG or WebP under 1&nbsp;MB. A square mark around
+                600&times;600 prints crisply. It is stored in your database, so
+                it travels with your backups &mdash; and it goes straight onto
+                your invoices.
+              </p>
+            </div>
+          </div>
+        </div>
+        <div class="card-foot">
+          <button class="btn" id="brand-finish">Finish setup</button>
+          <button class="btn ghost" id="brand-skip">Skip for now</button>
+          <span style="flex:1 1 auto"></span>
+          <span class="tiny faint" id="brand-status"></span>
+        </div>
+      </div>
+    </div>
+
+    <p class="tiny faint" style="margin-top:26px;line-height:1.7">
+      DashBill &mdash; budget, project and GST invoicing software.<br>
+      Built by Samuel Fernandes. The full setup walkthrough is in
+      <code class="inline">README.md</code> in the installation folder, and under
+      Settings &rarr; About once you are in.
+    </p>
+  </div>
+</div>
+
+<!-- ==================================================================== -->
+<!-- Main application shell                                               -->
+<!-- ==================================================================== -->
+<div id="shell">
+  <aside id="sidebar">
+    <div class="brand">
+      <div class="brand-mark" id="brand-mark">
+        <div class="brand-badge" id="brand-badge"></div>
+        <div style="min-width:0">
+          <div class="brand-name" id="brand-title">DashBill</div>
+          <div class="brand-sub" id="brand-subtitle">Budget &middot; Invoicing</div>
+        </div>
+      </div>
+    </div>
+    <nav id="nav"></nav>
+    <div class="sidebar-foot">
+      <div><span class="db-dot" id="db-dot"></span><span id="db-label">Connecting&hellip;</span></div>
+      <div id="backup-label" style="margin-top:5px"></div>
+    </div>
+  </aside>
+
+  <main id="main">
+    <header id="topbar">
+      <div>
+        <div class="crumb" id="crumb">Overview</div>
+        <h1 id="page-title">Dashboard</h1>
+      </div>
+      <span class="spacer"></span>
+      <div id="topbar-actions"></div>
+    </header>
+    <div id="view"></div>
+  </main>
+</div>
+
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+
+<script src="lib/icons.js"></script>
+<script src="lib/ui.js"></script>
+<script src="pages/dashboard.js"></script>
+<script src="pages/income.js"></script>
+<script src="pages/expenses.js"></script>
+<script src="pages/projects.js"></script>
+<script src="pages/invoices.js"></script>
+<script src="pages/clients.js"></script>
+<script src="pages/reports.js"></script>
+<script src="pages/settings.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

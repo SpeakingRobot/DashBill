@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+
+# Build output — the installer is published as a release asset, not committed
+dist/
+
+# Local runtime state (never commit: may contain database credentials)
+config.json
+*.log
+
+# Backups
+*.sql.bak
+*Backups/
+
+# OS / editor noise
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+
+# Local tooling config
+.claude/

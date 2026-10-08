@@ -1,0 +1,68 @@
+{
+  "name": "dashbill",
+  "productName": "DashBill",
+  "version": "1.2.0",
+  "description": "DashBill - budget, project and GST invoicing software for Windows. Brand it with your own business name and logo; keeps its books in your own TiDB Cloud or local MySQL database.",
+  "author": {
+    "name": "Samuel Fernandes"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "src/main/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "dist": "electron-builder --win",
+    "pack": "electron-builder --win --dir"
+  },
+  "dependencies": {
+    "mysql2": "^3.11.5"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "in.dashbill.app",
+    "productName": "DashBill",
+    "copyright": "Copyright (c) 2026 Samuel Fernandes",
+    "files": [
+      "src/**/*",
+      "package.json",
+      "README.md"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "DashBill-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "DashBill"
+    },
+    "extraResources": [
+      {
+        "from": "README.md",
+        "to": "README.md"
+      },
+      {
+        "from": "src/main/schema.sql",
+        "to": "schema.sql"
+      }
+    ]
+  }
+}
