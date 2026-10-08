@@ -7,7 +7,7 @@
 Brand it with your own business name and logo. Keeps its books in a database
 **you** own — your own free TiDB Cloud cluster, or MySQL on your own machine.
 
-### [⬇️ Download for Windows](https://github.com/SpeakingRobot/DashBill/releases/latest)
+### [⬇️ Download DashBill for Windows](https://github.com/SpeakingRobot/DashBill/releases/download/v1.6.0/DashBill-Setup-1.6.0.exe)
 
 `DashBill-Setup-1.6.0.exe` · 79 MB · Windows 10/11 64-bit
 
@@ -54,23 +54,22 @@ Brand it with your own business name and logo. Keeps its books in a database
 
 ### Download
 
-<!-- DOWNLOAD_LINK — update this block when a new version is released -->
+<!-- DOWNLOAD_LINK — bump the version in both links below on every release -->
 
-### ⬇️ [**Download the latest release**](https://github.com/SpeakingRobot/DashBill/releases/latest) &nbsp;·&nbsp; `DashBill-Setup-1.6.0.exe` &nbsp;·&nbsp; 79 MB
+### ⬇️ [**Download DashBill-Setup-1.6.0.exe**](https://github.com/SpeakingRobot/DashBill/releases/download/v1.6.0/DashBill-Setup-1.6.0.exe) &nbsp;·&nbsp; 79 MB
 
-On the release page, under **Assets**, click
-**`DashBill-Setup-1.6.0.exe`**. The other files there — `latest.yml` and
-`.blockmap` — are for the in-app updater; you do not need to download them.
+That link downloads the installer straight away — there is no page to navigate
+and nothing to sign in to. Every version is kept on this repository's
+[releases page](https://github.com/SpeakingRobot/DashBill/releases) if you ever need an older one.
 
-**You need exactly one file: `DashBill-Setup-1.6.0.exe`.** It is completely
-self-contained. There are no companion files, no runtime to install first, and
-nothing to unzip. From version 1.6.0 onwards, DashBill finds and installs its
-own updates — see [Installing an update](#installing-an-update).
+**You need exactly one file.** It is completely self-contained: no companion
+files, no runtime to install first, nothing to unzip. The `latest.yml` and
+`.blockmap` files you will see listed beside it on the releases page are for
+the in-app updater, not for you.
 
-**Mirror:** the same installer is also on
-[Google Drive](https://drive.google.com/file/d/1QND84fW9p9J6Ah_6qDpyZO9jvM1qNu1j/view?usp=sharing). Drive cannot virus-scan a file this
-large, so it warns *"…is too big for Google to scan for viruses"* — that message
-is about the file's size, not its contents. Press **Download anyway**.
+From version 1.6.0 onwards DashBill finds and installs its own updates, so this
+is the last time you will download it by hand — see
+[Installing an update](#installing-an-update).
 
 You can also build the installer yourself from this repository — see
 [Building from source](#7-building-from-source).
@@ -508,9 +507,10 @@ After `npm run dist` you get several things. Two of them go in the release.
 
 ### Releasing a new version
 
-In-app updating works off **GitHub Releases**. A file on Google Drive cannot be
-found by the updater, so the release is what matters; keep the Drive link if you
-like, but point it at the same file.
+In-app updating works off **GitHub Releases**, and so does the download link in
+this README. GitHub hosts the installer itself, with no size limit to worry
+about and no separate file-sharing account to keep in step — the release is the
+single place a version lives.
 
 1. **Bump the version.** Edit `version` in `package.json` — `1.5.0` → `1.6.0`.
    This is the number the updater compares, so it must go up.
@@ -524,6 +524,9 @@ like, but point it at the same file.
    - Leave **Set as a pre-release** unticked — pre-releases are ignored.
 4. **Publish.** Every installed copy sees it within half an hour, or at once if
    someone presses Check for updates.
+5. **Update the two download links in this README** — the one under the title
+   and the one in [Download](#download). Both name the version, so both move.
+   Search for `DOWNLOAD_LINK` to find the second.
 
 With the GitHub CLI the last two steps are one command:
 
