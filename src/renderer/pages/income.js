@@ -329,6 +329,7 @@
 
     const handle = modal({
       title: id ? 'Edit income entry' : 'Record income',
+      enterSaves: true,
       sub: id ? 'Entry #' + id : 'Money received — from a client, or from anything else',
       body:
         '<div class="field-row">' +

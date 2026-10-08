@@ -145,6 +145,7 @@
 
     const handle = modal({
       title: id ? 'Edit client' : 'New client',
+      enterSaves: true,
       sub: id ? client.name : 'Register a client so you can reuse them everywhere',
       body:
         '<div class="field-row">' +

@@ -451,6 +451,7 @@
 
     const handle = modal({
       title: 'Record a payment',
+      enterSaves: true,
       sub: projectInfo ? projectInfo.title : 'Part payment or advance',
       size: 'narrow',
       body:
@@ -511,6 +512,7 @@
 
     const handle = modal({
       title: id ? 'Edit project' : 'New project',
+      enterSaves: true,
       sub: id ? project.title : 'A job you have taken on',
       body:
         '<div class="field"><label>What is the project? <span class="req">*</span></label>' +

@@ -29,3 +29,4 @@ admin/
 # Release notes drafted for a `gh release create --notes-file`; not part of
 # the product, and the published copy lives on the release itself.
 release-notes-*.md
+github-appeal.md

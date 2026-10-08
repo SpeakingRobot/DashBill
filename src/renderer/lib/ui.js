@@ -250,7 +250,8 @@
    * Open a modal.
    * @param {object} options
    *   title, sub, body (HTML string), size ('narrow'|''|'wide'),
-   *   footer (HTML string), onMount(modalBody, modalApi), scroll (bool)
+   *   footer (HTML string), onMount(modalBody, modalApi), scroll (bool),
+   *   enterSaves (bool) -- Enter anywhere but a textarea presses [data-save]
    * @returns {{close:Function, el:HTMLElement, body:HTMLElement, error:Function}}
    */
   function modal(options) {
@@ -312,6 +313,41 @@
       if (modalStack[modalStack.length - 1] !== handle) return;
       event.stopPropagation();
       handle.close();
+    }
+
+    /*
+     * Enter saves.
+     *
+     * Somebody standing at a counter types an amount and expects to be done;
+     * reaching for the mouse to finish a two-field form is the kind of
+     * friction that makes software feel heavy. Opt-in rather than automatic,
+     * because on a long form like an invoice an accidental Enter should not
+     * commit the whole thing.
+     */
+    if (options.enterSaves) {
+      wrap.addEventListener('keydown', (event) => {
+        if (event.key !== 'Enter') return;
+        if (event.shiftKey || event.ctrlKey || event.altKey || event.metaKey) return;
+        const target = event.target;
+        const tag = target && target.tagName ? target.tagName.toLowerCase() : '';
+        // A newline in a notes box is a newline, and a focused button is
+        // already being pressed by Enter.
+        if (tag === 'textarea' || tag === 'button' || tag === 'a') return;
+        const save = wrap.querySelector('[data-save]');
+        if (!save || save.disabled) return;
+        event.preventDefault();
+        save.click();
+      });
+
+      const foot = wrap.querySelector('.modal-foot');
+      const save = foot && foot.querySelector('[data-save]');
+      if (save) {
+        save.title = 'Save (Enter)';
+        const hint = document.createElement('span');
+        hint.className = 'enter-hint';
+        hint.innerHTML = '<kbd>Enter</kbd> to save';
+        foot.insertBefore(hint, save);
+      }
     }
 
     wrap.querySelectorAll('[data-close]').forEach((button) => {

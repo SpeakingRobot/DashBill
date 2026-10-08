@@ -362,6 +362,7 @@
 
     const handle = modal({
       title: id ? 'Edit expense' : 'Add expense',
+      enterSaves: true,
       sub: id ? entry.title : 'Anything that went out',
       body:
         '<div class="field"><label>What was it for? <span class="req">*</span></label>' +
