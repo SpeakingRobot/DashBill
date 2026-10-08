@@ -565,12 +565,62 @@
       rerenderItems(current);
     });
 
+    /*
+     * Show the frozen billing address as one line when it came from a client
+     * record, and as a form when it has to be typed. Nothing is removed from
+     * the DOM, so saving reads the same fields either way.
+     */
+    const billToFields = body.querySelector('#billto-fields');
+    const billToSummary = body.querySelector('#billto-summary');
+    const billToEdit = body.querySelector('#billto-edit');
+    let billToForced = false;
+
+    function syncBillTo() {
+      const name = body.querySelector('[data-field="bill_to_name"]').value.trim();
+      const gstin = body.querySelector('[data-field="bill_to_gstin"]').value.trim();
+      const address = body.querySelector('[data-field="bill_to_address"]').value.trim();
+      /*
+       * Collapsed unless somebody has asked to type into it. Picking a client
+       * fills all three fields, and for a one-off customer the Change button
+       * is right there -- whereas the line items, which every invoice needs,
+       * were starting below the bottom of the dialog.
+       */
+      const collapse = !billToForced;
+
+      billToFields.classList.toggle('hidden', collapse);
+      billToSummary.classList.toggle('hidden', !collapse);
+      billToEdit.classList.toggle('hidden', !collapse);
+      if (!collapse) return;
+
+      billToSummary.innerHTML = name
+        ? '<strong>' + esc(name) + '</strong>' +
+          (gstin ? '<span class="mono">' + esc(gstin) + '</span>' : '') +
+          (address
+            ? '<span>' + esc(address.split(String.fromCharCode(10))
+              .map((l) => l.trim()).filter(Boolean).join(', ')) + '</span>'
+            : '<span class="faint">no address on file</span>')
+        : '<span class="faint">Choose a client above, or press ' +
+          '<strong>Change</strong> to type a one-off customer.</span>';
+    }
+
+    /** Open the block and put the cursor in it — used when saving complains. */
+    function openBillTo() {
+      billToForced = true;
+      syncBillTo();
+      body.querySelector('[data-field="bill_to_name"]').focus();
+    }
+
+    billToEdit.addEventListener('click', openBillTo);
+
+    syncBillTo();
+
     // Choosing a client refreshes the project list and the frozen address block.
     const clientSelect = body.querySelector('[data-field="client_id"]');
     clientSelect.addEventListener('change', async () => {
       if (!clientSelect.value) {
         body.querySelector('[data-field="project_id"]').innerHTML =
           projectOptions(projectOptionsCache || [], '');
+        syncBillTo();
         return;
       }
       // One call: the draft carries the project list for this client with it.
@@ -584,6 +634,8 @@
       body.querySelector('[data-field="place_of_supply"]').value = fresh.invoice.place_of_supply || '';
       body.querySelector('[data-field="gst_mode"]').value = fresh.invoice.gst_mode;
       refreshTotals();
+      billToForced = false;
+      syncBillTo();
       toast('Billing details filled in from the client record', 'info');
     });
 
@@ -641,6 +693,7 @@
       if (!list.length) { handle.error('Add at least one line item with a description.'); return; }
       if (!String(form.bill_to_name || '').trim()) {
         handle.error('Enter who the invoice is for.');
+        openBillTo();
         return;
       }
 
@@ -703,21 +756,35 @@
             projectOptions(projects, invoice.project_id) + '</select></div>' +
         '</div>' +
 
+        /*
+         * Billed to. For a registered client every one of these fields is
+         * filled in from their record, so the block collapses to a single line
+         * -- it was pushing the line items, the part you actually came here to
+         * type, off the bottom of the dialog.
+         */
         '<hr class="divider">' +
-        '<div class="section-title">Billed to — printed on the invoice</div>' +
-        '<div class="field-row">' +
-          '<div class="field"><label>Name / company <span class="req">*</span></label>' +
-            '<input type="text" data-field="bill_to_name" value="' +
-            esc(invoice.bill_to_name || '') + '"></div>' +
-          '<div class="field"><label>Their GSTIN</label>' +
-            '<input type="text" class="mono" data-field="bill_to_gstin" value="' +
-            esc(invoice.bill_to_gstin || '') + '" spellcheck="false"></div>' +
+        '<div class="flex between mb8">' +
+          '<div class="section-title" style="margin:0">' +
+            'Billed to — printed on the invoice</div>' +
+          '<button type="button" class="btn sm ghost hidden" id="billto-edit">' +
+            icon('edit', 13) + 'Change</button>' +
         '</div>' +
-        '<div class="field"><label>Their address</label>' +
-          '<textarea data-field="bill_to_address" rows="3">' +
-          esc(invoice.bill_to_address || '') + '</textarea>' +
-          '<div class="help">Frozen onto this invoice, so editing the client later never ' +
-          'changes a bill you have already sent.</div></div>' +
+        '<div class="billto-summary hidden" id="billto-summary"></div>' +
+        '<div id="billto-fields">' +
+          '<div class="field-row">' +
+            '<div class="field"><label>Name / company <span class="req">*</span></label>' +
+              '<input type="text" data-field="bill_to_name" value="' +
+              esc(invoice.bill_to_name || '') + '"></div>' +
+            '<div class="field"><label>Their GSTIN</label>' +
+              '<input type="text" class="mono" data-field="bill_to_gstin" value="' +
+              esc(invoice.bill_to_gstin || '') + '" spellcheck="false"></div>' +
+          '</div>' +
+          '<div class="field"><label>Their address</label>' +
+            '<textarea data-field="bill_to_address" rows="3">' +
+            esc(invoice.bill_to_address || '') + '</textarea>' +
+            '<div class="help">Frozen onto this invoice, so editing the client ' +
+            'later never changes a bill you have already sent.</div></div>' +
+        '</div>' +
 
         '<hr class="divider">' +
         '<div class="flex between mb8">' +
@@ -748,7 +815,7 @@
         card({
           title: 'Tax',
           body:
-            '<div class="field"><label>GST treatment</label>' +
+            '<div class="field"><label>How GST is shown</label>' +
               '<select data-field="gst_mode">' +
               enumOptions(GST_MODES, invoice.gst_mode) + '</select>' +
               '<div class="help">One combined GST line suits most commercial work. ' +
@@ -861,9 +928,19 @@
   }
 
   /** The checkboxes and chips that decide which columns the table shows. */
+  /** What each of the optional columns is for, shown on hover. */
+  const COLUMN_HELP = {
+    quantity: 'How many of each thing. Switch it off for a flat fee.',
+    hsn: 'The tax code for a product or service. Only needed if your ' +
+      'accountant asks for it — most small bills do without.',
+    unit: 'Pieces, sheets, hours and so on. Leave it off unless it helps ' +
+      'the customer understand the bill.'
+  };
+
   function columnToggles(columns) {
     const toggle = (key, label) =>
-      '<label class="col-toggle"><input type="checkbox" data-col-toggle="' + key + '"' +
+      '<label class="col-toggle" title="' + esc(COLUMN_HELP[key] || '') + '">' +
+      '<input type="checkbox" data-col-toggle="' + key + '"' +
       (columns[key] ? ' checked' : '') + '><span>' + esc(label) + '</span></label>';
 
     return toggle('quantity', 'Qty') + toggle('hsn', 'HSN/SAC') + toggle('unit', 'Unit') +
@@ -872,8 +949,9 @@
         '<button type="button" data-col-remove="' + esc(column.id) +
         '" title="Remove this column">' + icon('close', 11) + '</button></span>').join('') +
       (columns.custom.length < 4
-        ? '<button class="btn sm ghost" type="button" id="add-column">' +
-          icon('plus', 12) + 'Column</button>'
+        ? '<button class="btn sm ghost" type="button" id="add-column" ' +
+          'title="Add a column of your own — Size, Finish, Paper, anything ' +
+          'your trade needs.">' + icon('plus', 12) + 'Column</button>'
         : '');
   }
 
