@@ -28,41 +28,43 @@
   const OPEN = ['planned', 'in_progress', 'submitted', 'on_hold'];
 
   /**
-   * The quick triage across the top of the page.
-   *
-   * These are views of one list rather than four separate queries: every
-   * project is fetched once and bucketed here, so switching between them is
-   * instant and the counts are always consistent with each other. "Just
-   * started" is deliberately a subset of "Pending" — work you have taken on
-   * but not yet delivered.
+   * The status board, most urgent first. Cancelled is left out unless there
+   * is something in it, since a list of abandoned work is rarely what anybody
+   * came to look at.
    */
-  const BUCKETS = [
-    { id: 'pending', label: 'Pending', hint: 'still on your plate',
-      test: (row) => OPEN.includes(row.status) },
-    { id: 'started', label: 'Just started', hint: 'taken on, not delivered',
-      test: (row) => row.status === 'planned' || row.status === 'in_progress' },
-    { id: 'completed', label: 'Completed', hint: 'work finished',
-      test: (row) => row.status === 'completed' },
-    { id: 'all', label: 'Everything', hint: 'including cancelled',
-      test: () => true }
-  ];
+  const STATUS_ORDER = ['in_progress', 'submitted', 'planned', 'on_hold',
+    'completed', 'cancelled'];
+
+  const PAYMENT_ORDER = ['unpaid', 'partial', 'paid'];
 
   /** Anything due within this many days is called out before it is late. */
   const WARN_DAYS = 7;
 
-  const state = { search: '', bucket: 'pending', paymentStatus: '', clientId: '' };
+  /*
+   * This page does two different jobs, so it has two different kinds of tab.
+   *
+   *   Projects   where the work happens: create, edit, advance, get paid
+   *   Status     a read-only board of where everything stands
+   *   Payments   a read-only view of who still owes you
+   *
+   * Everything is changed on the first tab. The other two are for looking,
+   * and clicking any row on them opens that project's record, so looking
+   * never becomes a dead end.
+   */
+  const state = {
+    tab: 'list', search: '', status: 'open', paymentStatus: '', clientId: ''
+  };
   let clients = [];
-  // Every project matching the search/client/payment filters. The tabs slice
-  // this locally, so a status change patches one row and redraws with no
-  // round trip at all.
+  // Every project matching the filters. All three tabs read from this one
+  // fetch, so moving between them costs nothing.
   let currentRows = [];
   /*
    * Rows whose status you have just changed from this screen.
    *
-   * Marking a project completed takes it out of the Pending bucket, and a row
-   * that vanishes the instant you click it is disorienting — you lose the
-   * confirmation and the "Mark paid" button that has just appeared on it. So a
-   * row you have touched stays put until you move tab or reload.
+   * Marking a project completed takes it out of an "open work" filter, and a
+   * row that vanishes the instant you click it is disorienting — you lose the
+   * confirmation and the "Mark paid" button that has just appeared on it. So
+   * a row you have touched stays put until you move away or reload.
    */
   const justChanged = new Set();
 
@@ -71,12 +73,12 @@
     crumb: 'Work',
 
     async render(ctx) {
+      if (ctx.params.clientId) state.clientId = String(ctx.params.clientId);
+      if (ctx.params.tab) state.tab = ctx.params.tab;
+
       ctx.actions.innerHTML =
         '<button class="btn" data-action="new">' + icon('plus', 15) + 'New project</button>';
       bindActions(ctx.actions, { new: () => editor(ctx, null) });
-
-      if (ctx.params.clientId) state.clientId = String(ctx.params.clientId);
-      if (ctx.params.bucket) state.bucket = String(ctx.params.bucket);
 
       // Independent of each other, so both are asked for at once.
       const [clientList, rows] = await Promise.all([
@@ -85,12 +87,29 @@
       ]);
       clients = clientList;
 
-      ctx.el.innerHTML = filters() +
-        '<div id="proj-tabs-host"></div>' +
-        '<div id="proj-alert-host"></div>' +
+      ctx.el.innerHTML =
+        '<div class="tabs">' +
+          pageTab('list', 'Projects') +
+          pageTab('status', 'Status board') +
+          pageTab('payments', 'Payments') +
+        '</div>' +
         '<div id="proj-body">' + window.UI.loading(6) + '</div>';
-      wireFilters(ctx);
-      renderProjects(ctx, rows);
+
+      ctx.el.querySelectorAll('[data-tab]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const next = button.getAttribute('data-tab');
+          if (next === state.tab) return;
+          state.tab = next;
+          justChanged.clear();
+          ctx.el.querySelectorAll('[data-tab]').forEach((b) => {
+            b.classList.toggle('active', b.getAttribute('data-tab') === state.tab);
+          });
+          // A different view of rows already in hand: no round trip.
+          renderTab(ctx, currentRows);
+        });
+      });
+
+      renderTab(ctx, rows);
 
       if (ctx.params.action === 'new') {
         editor(ctx, null, { client_id: ctx.params.clientId || '' });
@@ -99,8 +118,26 @@
     }
   };
 
+  function pageTab(id, label) {
+    return '<button data-tab="' + id + '"' +
+      (state.tab === id ? ' class="active"' : '') + '>' + esc(label) + '</button>';
+  }
+
+  function renderTab(ctx, rows) {
+    currentRows = rows;
+    if (state.tab === 'status') return statusTab(ctx, rows);
+    if (state.tab === 'payments') return paymentsTab(ctx, rows);
+    return listTab(ctx, rows);
+  }
+
   function filters() {
     return '<div class="filters">' +
+      '<div class="field"><label>Status</label><select id="p-status">' +
+        '<option value="open"' + (state.status === 'open' ? ' selected' : '') +
+        '>Open (not finished)</option>' +
+        '<option value=""' + (state.status === '' ? ' selected' : '') + '>Everything</option>' +
+        enumOptions(STATUSES, state.status) +
+        '</select></div>' +
       '<div class="field"><label>Payment</label><select id="p-payment">' +
         enumOptions([['unpaid', 'Unpaid'], ['partial', 'Part paid'], ['paid', 'Paid']],
           state.paymentStatus, 'Any') + '</select></div>' +
@@ -114,6 +151,9 @@
   }
 
   function wireFilters(ctx) {
+    document.getElementById('p-status').addEventListener('change', (event) => {
+      state.status = event.target.value; load(ctx);
+    });
     document.getElementById('p-payment').addEventListener('change', (event) => {
       state.paymentStatus = event.target.value; load(ctx);
     });
@@ -126,7 +166,11 @@
     }, 240));
   }
 
-  /** Just the data, so the caller can fetch it alongside something else. */
+  /**
+   * Everything, filtered by client/payment/search only. The status filter is
+   * applied in the window so the two read-only tabs always see the whole
+   * picture, whatever the list tab happens to be showing.
+   */
   function fetchProjects() {
     return api('projects:list', {
       search: state.search || undefined,
@@ -137,9 +181,15 @@
 
   async function load(ctx) {
     const host = document.getElementById('proj-body');
-    host.innerHTML = window.UI.loading(6);
+    if (host) host.innerHTML = window.UI.loading(6);
     justChanged.clear();
-    renderProjects(ctx, await fetchProjects());
+    renderTab(ctx, await fetchProjects());
+  }
+
+  function matchesStatusFilter(row) {
+    if (!state.status) return true;
+    if (state.status === 'open') return OPEN.includes(row.status);
+    return row.status === state.status;
   }
 
   // =========================================================================
@@ -214,119 +264,66 @@
     bindActions(host, { openDue: (ds) => detail(ctx, Number(ds.id)) });
   }
 
-  /** The three-way triage, with a live count on each tab. */
-  function renderTabs(ctx, rows) {
-    const host = document.getElementById('proj-tabs-host');
-    if (!host) return;
-    host.innerHTML = '<div class="work-tabs" id="proj-tabs">' +
-      BUCKETS.map((bucket) => {
-        const count = rows.filter(bucket.test).length;
-        return '<button data-action="bucket" data-bucket="' + bucket.id + '"' +
-          (state.bucket === bucket.id ? ' class="active"' : '') + '>' +
-          '<span class="wt-count">' + fmt.number(count) + '</span>' +
-          '<span class="wt-label">' + esc(bucket.label) + '</span>' +
-          '<span class="wt-hint">' + esc(bucket.hint) + '</span>' +
-          '</button>';
-      }).join('') + '</div>';
+  // =========================================================================
+  // Tab 1 — Projects. The working list: this is where everything is changed.
+  // =========================================================================
 
-    bindActions(host, {
-      bucket: (ds) => {
-        if (state.bucket === ds.bucket) return;
-        state.bucket = ds.bucket;
-        justChanged.clear();
-        // Purely a different slice of what is already here: no round trip.
-        renderProjects(ctx, currentRows);
-      }
-    });
-  }
-
-  function currentBucket() {
-    const found = BUCKETS.filter((bucket) => bucket.id === state.bucket);
-    return found.length ? found[0] : BUCKETS[0];
-  }
-
-  function renderProjects(ctx, rows) {
-    currentRows = rows;
-    renderTabs(ctx, rows);
-    deadlineAlert(ctx, rows);
-
-    const bucket = currentBucket();
-    const visible = rows.filter((row) =>
-      bucket.test(row) || justChanged.has(Number(row.id)));
+  function listTab(ctx, rows) {
     const host = document.getElementById('proj-body');
+    const visible = rows.filter((row) =>
+      matchesStatusFilter(row) || justChanged.has(Number(row.id)));
 
-    const value = visible.reduce((sum, row) => sum + num(row.amount), 0);
-    const received = visible.reduce((sum, row) => sum + num(row.amount_paid), 0);
-    const pending = value - received;
-    const awaiting = visible.filter((row) =>
-      row.status === 'completed' && row.payment_status !== 'paid').length;
-    const late = atRisk(visible).filter((row) => row.days < 0).length;
+    host.innerHTML = filters() + '<div id="proj-table"></div>';
+    wireFilters(ctx);
 
-    host.innerHTML =
-      '<div class="grid c4 mb14">' +
-        // The tab above already carries the count, so this one leads with money.
-        stat({ label: 'Value of this view', value: fmt.moneyShort(value), accent: true,
-          sub: '<span class="faint">' + fmt.number(visible.length) + ' project' +
-            (visible.length === 1 ? '' : 's') + '</span>' }) +
-        stat({ label: 'Received', value: fmt.moneyShort(received), small: true,
-          sub: '<span class="faint">' +
-            (value ? fmt.percent((received / value) * 100, 0) + ' collected' : '—') +
-            '</span>' }) +
-        stat({ label: 'Still to collect', value: fmt.moneyShort(pending), small: true,
-          sub: pending > 0 ? '<span class="delta down">outstanding</span>'
-            : '<span class="faint">nothing pending</span>' }) +
-        (bucket.id === 'completed'
-          ? stat({ label: 'Awaiting payment', value: fmt.number(awaiting), small: true,
-            sub: '<span class="faint">ready to chase</span>' })
-          : stat({ label: 'Past deadline', value: fmt.number(late), small: true,
-            sub: late
-              ? '<span class="delta down">needs attention</span>'
-              : '<span class="faint">all on time</span>' })) +
-      '</div>' +
+    document.getElementById('proj-table').innerHTML = card({
+      title: 'Projects',
+      hint: 'Click a row for the full record',
+      flush: true,
+      body: table([
+        { label: 'Project', render: (row) =>
+          '<div class="row-title">' + esc(row.title) +
+          (row.code ? ' <span class="faint mono tiny">' + esc(row.code) + '</span>' : '') +
+          '</div>' +
+          '<div class="row-sub">' +
+          esc(row.client_company || row.client_name || 'No client') + '</div>' },
+        { label: 'Status', render: (row) => statusBadge(PROJECT_STATUS, row.status) },
+        { label: 'Deadline', render: (row) => {
+          if (!row.due_date) return '<span class="faint">—</span>';
+          return fmt.dateShort(row.due_date) +
+            '<div class="row-sub">' + deadlineChip(row) + '</div>';
+        } },
+        { label: 'Value', className: 'num', render: (row) => fmt.money(row.amount) },
+        { label: 'Paid', className: 'num', render: (row) =>
+          num(row.amount_paid)
+            ? fmt.money(row.amount_paid) +
+              (num(row.balance) > 0
+                ? '<div class="row-sub neg">' + fmt.money(row.balance) + ' due</div>' : '')
+            : '<span class="faint">—</span>' },
+        { label: 'Payment', render: (row) => statusBadge(PAYMENT_STATUS, row.payment_status) },
+        { label: 'Billed', render: (row) =>
+          num(row.invoice_count)
+            ? badge(row.invoice_count + ' invoice' + (num(row.invoice_count) === 1 ? '' : 's'))
+            : '<span class="faint">not yet</span>' },
+        { label: '', className: 'actions', render: (row) => rowActions(row) }
+      ], {
+        rows: visible,
+        onRowClick: true,
+        empty: hasFilters()
+          ? { icon: 'projects', title: 'No project matches these filters',
+            message: 'Try "Everything" under Status, or clear the search.' }
+          : { icon: 'projects', title: 'No projects yet',
+            message: 'Add a project for every job you take on, with the agreed ' +
+              'amount. Update its status as the work moves along; when it is done ' +
+              'and the client has paid, mark it paid and the income is recorded ' +
+              'for you.',
+            action: 'new', actionLabel: 'Add your first project' }
+      })
+    });
 
-      card({
-        title: bucket.label + ' projects',
-        hint: 'Click a row for the full record',
-        flush: true,
-        body: table([
-          { label: 'Project', render: (row) =>
-            '<div class="row-title">' + esc(row.title) +
-            (row.code ? ' <span class="faint mono tiny">' + esc(row.code) + '</span>' : '') +
-            '</div>' +
-            '<div class="row-sub">' +
-            esc(row.client_company || row.client_name || 'No client') + '</div>' },
-          { label: 'Status', render: (row) => statusBadge(PROJECT_STATUS, row.status) },
-          { label: 'Deadline', render: (row) => {
-            if (!row.due_date) return '<span class="faint">—</span>';
-            return fmt.dateShort(row.due_date) +
-              '<div class="row-sub">' + deadlineChip(row) + '</div>';
-          } },
-          { label: 'Value', className: 'num', render: (row) => fmt.money(row.amount) },
-          { label: 'Paid', className: 'num', render: (row) =>
-            num(row.amount_paid)
-              ? fmt.money(row.amount_paid) +
-                (num(row.balance) > 0
-                  ? '<div class="row-sub neg">' + fmt.money(row.balance) + ' due</div>' : '')
-              : '<span class="faint">—</span>' },
-          { label: 'Payment', render: (row) => statusBadge(PAYMENT_STATUS, row.payment_status) },
-          { label: 'Billed', render: (row) =>
-            num(row.invoice_count)
-              ? badge(row.invoice_count + ' invoice' + (num(row.invoice_count) === 1 ? '' : 's'))
-              : '<span class="faint">not yet</span>' },
-          { label: '', className: 'actions', render: (row) => rowActions(row) }
-        ], {
-          rows: visible,
-          onRowClick: true,
-          footer: visible.length
-            ? '<tr><td colspan="3">Totals</td><td class="num">' + fmt.money(value) +
-              '</td><td class="num">' + fmt.money(received) + '</td><td colspan="3"></td></tr>'
-            : '',
-          empty: emptyFor(bucket, rows)
-        })
-      });
-
-    bindRows(host, visible, (row) => detail(ctx, row.id));
-    bindActions(host, {
+    const tableHost = document.getElementById('proj-table');
+    bindRows(tableHost, visible, (row) => detail(ctx, row.id));
+    bindActions(tableHost, {
       new: () => editor(ctx, null),
       edit: (ds) => editor(ctx, Number(ds.id)),
       advance: (ds) => advance(ctx, ds),
@@ -336,29 +333,167 @@
     });
   }
 
-  /** What to say when a tab has nothing in it — which is often good news. */
-  function emptyFor(bucket, rows) {
-    if (hasFilters()) {
-      return { icon: 'projects', title: 'No project matches these filters',
-        message: 'Clear the search, or try the Everything tab.' };
-    }
-    if (!rows.length) {
-      return { icon: 'projects', title: 'No projects yet',
-        message: 'Add a project for every job you take on, with the agreed amount. ' +
-          'Update its status as the work moves along; when it is done and the ' +
-          'client has paid, mark it paid and the income is recorded for you.',
-        action: 'new', actionLabel: 'Add your first project' };
-    }
-    const messages = {
-      pending: ['Nothing pending', 'Every job is either finished or cancelled. ' +
-        'Enjoy it while it lasts.'],
-      started: ['Nothing in hand', 'No job is currently planned or in progress. ' +
-        'Anything already delivered is under Completed.'],
-      completed: ['Nothing finished yet', 'Projects appear here once you mark them ' +
-        'completed. Until then they sit under Pending.']
-    };
-    const entry = messages[bucket.id] || ['Nothing here', ''];
-    return { icon: 'check', title: entry[0], message: entry[1] };
+  // =========================================================================
+  // Tab 2 — Status board. Where everything stands, at a glance.
+  // =========================================================================
+
+  function statusTab(ctx, rows) {
+    const host = document.getElementById('proj-body');
+    const open = rows.filter(isOpen);
+    const groups = STATUS_ORDER
+      .map((status) => [status, rows.filter((row) => row.status === status)])
+      .filter(([status, list]) => list.length || OPEN.includes(status));
+
+    host.innerHTML =
+      '<div id="proj-alert-host"></div>' +
+      '<div class="grid c4 mb14">' +
+        stat({ label: 'Still to do', value: fmt.number(open.length), accent: true,
+          sub: '<span class="faint">' +
+            fmt.money(open.reduce((s, r) => s + num(r.amount), 0)) + ' of work</span>' }) +
+        stat({ label: 'In progress', small: true,
+          value: fmt.number(rows.filter((r) => r.status === 'in_progress').length),
+          sub: '<span class="faint">being worked on</span>' }) +
+        stat({ label: 'Submitted', small: true,
+          value: fmt.number(rows.filter((r) => r.status === 'submitted').length),
+          sub: '<span class="faint">waiting on the client</span>' }) +
+        stat({ label: 'Past deadline', small: true,
+          value: fmt.number(atRisk(rows).filter((r) => r.days < 0).length),
+          sub: atRisk(rows).filter((r) => r.days < 0).length
+            ? '<span class="delta down">needs attention</span>'
+            : '<span class="faint">all on time</span>' }) +
+      '</div>' +
+      '<div class="board">' +
+        groups.map(([status, list]) => boardColumn(status, list)).join('') +
+      '</div>';
+
+    deadlineAlert(ctx, rows);
+    bindActions(host, { openRow: (ds) => detail(ctx, Number(ds.id)) });
+  }
+
+  function boardColumn(status, list) {
+    const label = (PROJECT_STATUS[status] || ['', fmt.label(status)])[1];
+    return '<section class="board-col">' +
+      '<header>' + statusBadge(PROJECT_STATUS, status) +
+        '<span class="board-count">' + list.length + '</span></header>' +
+      (list.length
+        ? '<div class="board-items">' + list.map(boardCard).join('') + '</div>'
+        : '<p class="board-empty">Nothing ' + esc(label.toLowerCase()) + '</p>') +
+      '</section>';
+  }
+
+  function boardCard(row) {
+    const chip = deadlineChip(row);
+    return '<button class="board-card" data-action="openRow" data-id="' + row.id + '">' +
+      '<span class="bc-title">' + esc(row.title) + '</span>' +
+      '<span class="bc-sub">' +
+        esc(row.client_company || row.client_name || 'No client') + '</span>' +
+      '<span class="bc-foot">' +
+        '<span class="bc-amount">' + fmt.money(row.amount) + '</span>' +
+        (row.due_date
+          ? '<span class="bc-due">' + (chip || esc(fmt.dateShort(row.due_date))) + '</span>'
+          : '') +
+      '</span>' +
+      (num(row.balance) > 0 && row.status === 'completed'
+        ? '<span class="bc-flag">' + fmt.money(row.balance) + ' still owed</span>' : '') +
+      '</button>';
+  }
+
+  // =========================================================================
+  // Tab 3 — Payments. Who still owes you, and how much.
+  // =========================================================================
+
+  function paymentsTab(ctx, rows) {
+    const host = document.getElementById('proj-body');
+    const value = rows.reduce((sum, row) => sum + num(row.amount), 0);
+    const received = rows.reduce((sum, row) => sum + num(row.amount_paid), 0);
+    const outstanding = value - received;
+
+    // Finished work that has not been paid for: the list worth acting on.
+    const chase = rows
+      .filter((row) => row.status === 'completed' && row.payment_status !== 'paid')
+      .sort((a, b) => num(b.balance) - num(a.balance));
+
+    const groups = PAYMENT_ORDER
+      .map((key) => [key, rows.filter((row) => row.payment_status === key)])
+      .filter(([, list]) => list.length);
+
+    host.innerHTML =
+      '<div class="grid c4 mb14">' +
+        stat({ label: 'Still to collect', value: fmt.moneyShort(outstanding), accent: true,
+          sub: '<span class="faint">across ' +
+            fmt.number(rows.filter((r) => num(r.balance) > 0).length) +
+            ' project' + (rows.filter((r) => num(r.balance) > 0).length === 1 ? '' : 's') +
+            '</span>' }) +
+        stat({ label: 'Received', value: fmt.moneyShort(received), small: true,
+          sub: '<span class="faint">' +
+            (value ? fmt.percent((received / value) * 100, 0) + ' collected' : '—') +
+            '</span>' }) +
+        stat({ label: 'Total agreed', value: fmt.moneyShort(value), small: true,
+          sub: '<span class="faint">all projects shown</span>' }) +
+        stat({ label: 'Done, not paid', value: fmt.number(chase.length), small: true,
+          sub: chase.length
+            ? '<span class="delta down">' + fmt.money(
+              chase.reduce((s, r) => s + num(r.balance), 0)) + '</span>'
+            : '<span class="faint">nothing to chase</span>' }) +
+      '</div>' +
+
+      (chase.length
+        ? '<div class="mb14">' + card({
+          title: 'Finished, waiting to be paid',
+          hint: 'the money worth chasing',
+          flush: true,
+          body: table([
+            { label: 'Project', render: (row) =>
+              '<div class="row-title">' + esc(row.title) + '</div>' +
+              '<div class="row-sub">' +
+              esc(row.client_company || row.client_name || 'No client') + '</div>' },
+            { label: 'Completed', render: (row) => row.completed_on
+              ? fmt.dateShort(row.completed_on) : '<span class="faint">—</span>' },
+            { label: 'Agreed', className: 'num', render: (row) => fmt.money(row.amount) },
+            { label: 'Received', className: 'num', render: (row) =>
+              num(row.amount_paid) ? fmt.money(row.amount_paid)
+                : '<span class="faint">nothing</span>' },
+            { label: 'Still owed', className: 'num strong',
+              render: (row) => '<span class="neg">' + fmt.money(row.balance) + '</span>' },
+            { label: 'Billed', render: (row) => num(row.invoice_count)
+              ? badge(row.invoice_count + ' invoice' +
+                (num(row.invoice_count) === 1 ? '' : 's'))
+              : badge('not invoiced', 'warn') }
+          ], { rows: chase, onRowClick: true })
+        }) + '</div>'
+        : '') +
+
+      groups.map(([key, list]) => {
+        const owed = list.reduce((sum, row) => sum + num(row.balance), 0);
+        return '<div class="mb14">' + card({
+          title: (PAYMENT_STATUS[key] || ['', fmt.label(key)])[1],
+          hint: list.length + ' project' + (list.length === 1 ? '' : 's') +
+            (owed > 0 ? '  ·  ' + fmt.money(owed) + ' outstanding' : ''),
+          flush: true,
+          body: table([
+            { label: 'Project', render: (row) =>
+              '<div class="row-title">' + esc(row.title) + '</div>' +
+              '<div class="row-sub">' +
+              esc(row.client_company || row.client_name || 'No client') + '</div>' },
+            { label: 'Status', render: (row) => statusBadge(PROJECT_STATUS, row.status) },
+            { label: 'Agreed', className: 'num', render: (row) => fmt.money(row.amount) },
+            { label: 'Received', className: 'num', render: (row) =>
+              num(row.amount_paid) ? fmt.money(row.amount_paid)
+                : '<span class="faint">—</span>' },
+            { label: 'Balance', className: 'num', render: (row) => num(row.balance) > 0
+              ? '<span class="neg">' + fmt.money(row.balance) + '</span>'
+              : '<span class="pos">settled</span>' }
+          ], { rows: list, onRowClick: true, compact: true })
+        }) + '</div>';
+      }).join('') +
+
+      (rows.length ? '' : window.UI.emptyState({
+        icon: 'money', title: 'No projects yet',
+        message: 'Payment status appears here once you have work on the books.'
+      }));
+
+    // Every row on this tab opens the project it belongs to.
+    bindRows(host, chase.concat(rows), (row) => detail(ctx, row.id));
   }
 
   /** The one button that makes sense next for this project. */
@@ -408,7 +543,7 @@
     const rows = currentRows.slice();
     if (index >= 0) rows[index] = row;
     else rows.unshift(row);
-    renderProjects(ctx, rows);
+    renderTab(ctx, rows);
   }
 
   async function advance(ctx, ds) {

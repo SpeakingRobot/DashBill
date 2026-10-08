@@ -112,16 +112,20 @@
           text: 'A project is a job you have agreed to do, with a price. ' +
             'Everything else on this page follows from keeping its status up to ' +
             'date as the work moves.' },
-        { page: 'projects', selector: '#proj-tabs',
-          title: 'Three views of your work',
-          text: 'Pending is everything still open. Just started is what you took ' +
-            'on recently. Completed is finished work — including anything ' +
-            'finished but not yet paid for.' },
-        { page: 'projects', selector: '#proj-alert',
-          title: 'Deadlines warn you before they bite',
-          text: 'Anything overdue or due within a week is called out here and ' +
-            'marked in the Deadline column. It only appears when there is ' +
-            'something to see.' },
+        { page: 'projects', selector: '.tabs',
+          title: 'Three ways to look at the same work',
+          text: 'This first tab is where everything is changed — adding a job, ' +
+            'moving it along, recording what you were paid. The other two are ' +
+            'purely for looking.' },
+        { page: 'projects', title: 'The status board',
+          text: 'A column for each stage — in progress, submitted, planned, ' +
+            'completed — so you can see where every job stands without ' +
+            'reading a table. Anything overdue or due within the week is called ' +
+            'out at the top. Click any card to open that job.' },
+        { page: 'projects', title: 'Payments',
+          text: 'Who still owes you, and how much. Work you have finished but not ' +
+            'been paid for is listed first, because that is the money worth ' +
+            'chasing.' },
         { page: 'projects', selector: 'table.data [data-action="advance"]',
           title: 'Move the work along',
           text: 'Each row offers the one button that makes sense next: Start ' +
@@ -139,9 +143,13 @@
             '"done but not paid" list is always honest. For an advance or a part ' +
             'payment use Record payment, which works at any stage.' },
         { q: 'How do I know a deadline is coming up?',
-          a: 'The banner at the top of Projects lists anything overdue or due ' +
-            'within seven days, the Deadline column counts down, and the ' +
+          a: 'The Status board lists anything overdue or due within seven days ' +
+            'at the top, the Deadline column counts down in red, and the ' +
             'dashboard repeats it. The welcome screen tells you too.' },
+        { q: 'Why can I not change anything on the Status board?',
+          a: 'On purpose. Those two tabs are for looking, so there is nothing to ' +
+            'press by accident while you are reading. Click any row or card and ' +
+            'it opens that job, where every button lives.' },
         { q: 'What does Record payment do that Mark paid does not?',
           a: 'Record payment takes any amount, so it handles advances and part ' +
             'payments. Mark paid settles the whole remaining balance in one go.' },
