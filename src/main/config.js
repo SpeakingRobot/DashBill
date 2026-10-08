@@ -38,6 +38,13 @@ const DEFAULTS = {
     backupOnExit: true
   },
   window: { width: 1360, height: 880, maximized: true },
+  /*
+   * How large everything is drawn. This belongs to the screen in front of the
+   * person, not to their books, so it stays on this machine rather than in the
+   * database -- the same user on a laptop and on a shop counter display wants
+   * two different answers.
+   */
+  ui: { zoom: 1 },
   configured: false
 };
 

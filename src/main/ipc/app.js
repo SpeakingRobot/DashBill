@@ -8,7 +8,44 @@ const db = require('../db');
 const config = require('../config');
 const { isDue, daysSince } = require('../services/backupRunner');
 
+/** The sizes the Display control offers, smallest first. */
+const ZOOM_STEPS = [1, 1.15, 1.3, 1.5];
+
+function clampZoom(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 1;
+  return Math.min(1.5, Math.max(1, Math.round(n * 100) / 100));
+}
+
 module.exports = {
+  /**
+   * How large to draw everything.
+   *
+   * Windows' own display scaling is global; this is per-application, so
+   * somebody who only finds this screen hard to read can enlarge it without
+   * making everything else on their computer enormous.
+   */
+  'app:setZoom': async ({ zoom, step } = {}) => {
+    const current = clampZoom(config.load().ui.zoom);
+    let next;
+    if (step) {
+      const index = ZOOM_STEPS.findIndex((z) => Math.abs(z - current) < 0.02);
+      const at = index < 0 ? 0 : index;
+      next = ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, Math.max(0, at + Number(step)))];
+    } else {
+      next = clampZoom(zoom);
+    }
+    config.save({ ui: { zoom: next } });
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) win.webContents.setZoomFactor(next);
+    });
+    return { zoom: next, steps: ZOOM_STEPS };
+  },
+
+  'app:getZoom': async () => ({
+    zoom: clampZoom(config.load().ui.zoom), steps: ZOOM_STEPS
+  }),
+
   /**
    * Everything the renderer needs to decide what to show first: is the
    * database reachable, has setup been done, is a backup overdue.

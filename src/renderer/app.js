@@ -822,7 +822,15 @@
   });
 
   window.api.on('menu:action', async (payload) => {
-    if (payload.action === 'tour') {
+    if (payload.action === 'zoomIn' || payload.action === 'zoomOut' ||
+        payload.action === 'zoomReset') {
+      const result = await apiSafe('app:setZoom', payload.action === 'zoomReset'
+        ? { zoom: 1 }
+        : { step: payload.action === 'zoomIn' ? 1 : -1 });
+      if (result) {
+        toast('Display size ' + Math.round(result.zoom * 100) + '%', 'success');
+      }
+    } else if (payload.action === 'tour') {
       if (!App.ready || !window.Guide) return;
       window.Guide.run(window.Guide.topicForPage(App.current || 'dashboard').id);
     } else if (payload.action === 'refresh') {

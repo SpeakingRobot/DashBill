@@ -278,15 +278,20 @@
     return '<div class="filters">' +
       '<div class="field"><label>Period</label><select id="e-range">' +
         enumOptions(RANGES, state.range) + '</select></div>' +
-      '<div class="field"><label>From</label><input type="date" id="e-from" value="' +
-        esc(state.from) + '"' + (state.range === 'all' ? ' disabled' : '') + '></div>' +
-      '<div class="field"><label>To</label><input type="date" id="e-to" value="' +
-        esc(state.to) + '"' + (state.range === 'all' ? ' disabled' : '') + '></div>' +
+      // Shown only once you ask for your own dates; otherwise they merely
+      // repeat the period above them.
+      '<div class="dates" id="e-dates"' +
+        (state.range === 'custom' ? '' : ' hidden') + '>' +
+        '<div class="field"><label>From</label><input type="date" id="e-from" value="' +
+          esc(state.from) + '"></div>' +
+        '<div class="field"><label>To</label><input type="date" id="e-to" value="' +
+          esc(state.to) + '"></div>' +
+      '</div>' +
       '<div class="field"><label>Category</label><select id="e-category">' +
         options(categories, { selected: state.categoryId, blank: 'All categories' }) +
         '</select></div>' +
-      '<div class="field"><label>Type</label><select id="e-kind">' +
-        enumOptions(KINDS, state.kind, 'All types') + '</select></div>' +
+      '<div class="field"><label>Kind of spending</label><select id="e-kind">' +
+        enumOptions(KINDS, state.kind, 'Any kind') + '</select></div>' +
       '<div class="field grow"><label>Search</label><div class="search-box">' +
         icon('search', 14) + '<input type="text" id="e-search" placeholder="Title, payee or note" ' +
         'value="' + esc(state.search) + '" spellcheck="false"></div></div>' +

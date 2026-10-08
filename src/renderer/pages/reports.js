@@ -53,10 +53,14 @@
     return '<div class="filters">' +
       '<div class="field"><label>Period</label><select id="r-preset">' +
         enumOptions(PRESETS, state.preset) + '</select></div>' +
-      '<div class="field"><label>From</label>' +
-        '<input type="date" id="r-from" value="' + esc(state.from) + '"></div>' +
-      '<div class="field"><label>To</label>' +
-        '<input type="date" id="r-to" value="' + esc(state.to) + '"></div>' +
+      // Only meaningful once you ask for your own dates.
+      '<div class="dates" id="r-dates"' +
+        (state.preset === 'custom' ? '' : ' hidden') + '>' +
+        '<div class="field"><label>From</label>' +
+          '<input type="date" id="r-from" value="' + esc(state.from) + '"></div>' +
+        '<div class="field"><label>To</label>' +
+          '<input type="date" id="r-to" value="' + esc(state.to) + '"></div>' +
+      '</div>' +
       '<span class="spacer"></span>' +
       '<div class="field"><label>&nbsp;</label>' +
         '<button class="btn secondary" id="r-apply">' + icon('refresh', 14) + 'Refresh</button></div>' +
@@ -86,6 +90,7 @@
         document.getElementById('r-from').value = state.from;
         document.getElementById('r-to').value = state.to;
       }
+      document.getElementById('r-dates').hidden = state.preset !== 'custom';
       load(ctx);
     });
     ['from', 'to'].forEach((key) => {

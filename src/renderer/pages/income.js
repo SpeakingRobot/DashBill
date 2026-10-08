@@ -77,12 +77,15 @@
     return '<div class="filters">' +
       '<div class="field"><label>Period</label><select id="i-range">' +
         enumOptions(RANGES, state.range) + '</select></div>' +
-      '<div class="field"><label>From</label>' +
-        '<input type="date" id="i-from" value="' + esc(state.from) + '"' +
-        (state.range === 'all' ? ' disabled' : '') + '></div>' +
-      '<div class="field"><label>To</label>' +
-        '<input type="date" id="i-to" value="' + esc(state.to) + '"' +
-        (state.range === 'all' ? ' disabled' : '') + '></div>' +
+      // The two date boxes only mean anything once you have asked for dates of
+      // your own; until then they just repeat the period you already picked.
+      '<div class="dates" id="i-dates"' +
+        (state.range === 'custom' ? '' : ' hidden') + '>' +
+        '<div class="field"><label>From</label>' +
+          '<input type="date" id="i-from" value="' + esc(state.from) + '"></div>' +
+        '<div class="field"><label>To</label>' +
+          '<input type="date" id="i-to" value="' + esc(state.to) + '"></div>' +
+      '</div>' +
       '<div class="field"><label>Client</label><select id="i-client">' +
         options(clients, {
           selected: state.clientId,
@@ -114,7 +117,7 @@
       const toEl = document.getElementById('i-to');
       fromEl.value = state.from;
       toEl.value = state.to;
-      fromEl.disabled = state.range === 'all';
+      document.getElementById('i-dates').hidden = state.range !== 'custom';
       toEl.disabled = state.range === 'all';
       reload();
     });
@@ -124,6 +127,7 @@
         state[key] = event.target.value;
         state.range = 'custom';
         document.getElementById('i-range').value = 'custom';
+        state.range = 'custom';
         reload();
       });
     });

@@ -13,6 +13,15 @@
   } = window.UI;
 
   const state = { tab: 'company', forceNews: false };
+
+  /** value, label, and the size of the "Aa" sample that shows it. */
+  const ZOOMS = [
+    [1, 'Normal', 15],
+    [1.15, 'Large', 18],
+    [1.3, 'Larger', 21],
+    [1.5, 'Largest', 24]
+  ];
+  let zoomNow = 1;
   let settings = {};
   let info = {};
 
@@ -124,6 +133,8 @@
 
   async function companyTab(ctx) {
     const host = document.getElementById('set-body');
+    const current = await apiSafe('app:getZoom');
+    if (current) zoomNow = current.zoom;
     const logo = value('company_logo');
     const sign = value('invoice_signature_image');
 
@@ -186,6 +197,24 @@
         '</div>' +
 
         '<div class="col" style="gap:14px">' +
+          card({ title: 'Display size',
+            hint: 'this screen only', body:
+            '<p class="small" style="margin:0 0 12px;line-height:1.6">Makes ' +
+            'everything in ' + esc(productName()) + ' bigger &mdash; text, ' +
+            'buttons and spacing alike. It changes nothing on the rest of your ' +
+            'computer, and nothing on your printed invoices.</p>' +
+            '<div class="size-choice" id="size-choice">' +
+              ZOOMS.map((z) =>
+                '<button data-action="zoom" data-zoom="' + z[0] + '"' +
+                (Math.abs(zoomNow - z[0]) < 0.02 ? ' class="active"' : '') + '>' +
+                '<span style="font-size:' + z[2] + 'px">Aa</span>' +
+                '<em>' + esc(z[1]) + '</em></button>').join('') +
+            '</div>' +
+            '<p class="tiny faint mt8" style="line-height:1.6">You can also ' +
+            'press <strong>Ctrl</strong> and <strong>+</strong> at any time, or ' +
+            '<strong>Ctrl</strong> and <strong>0</strong> to go back to ' +
+            'normal.</p>' }) +
+
           card({ title: 'Logo', body:
             '<div class="image-drop">' +
               (logo
@@ -240,6 +269,16 @@
       '</div>';
 
     bindActions(host, {
+      zoom: async (ds) => {
+        const result = await apiSafe('app:setZoom', { zoom: Number(ds.zoom) });
+        if (!result) return;
+        zoomNow = result.zoom;
+        host.querySelectorAll('#size-choice button').forEach((b) => {
+          b.classList.toggle('active',
+            Math.abs(Number(b.getAttribute('data-zoom')) - zoomNow) < 0.02);
+        });
+        toast('Display size ' + Math.round(zoomNow * 100) + '%', 'success');
+      },
       save: (ds, button) => save(ctx, host, button),
       pickLogo: async (ds, button) => {
         await window.UI.busy(button, async () => {

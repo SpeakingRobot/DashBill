@@ -141,6 +141,13 @@ function createWindow() {
   if (cfg.window.maximized) mainWindow.maximize();
   mainWindow.loadFile(path.join(__dirname, '..', 'renderer', 'index.html'));
 
+  // Whatever display size was chosen last time, applied before the window is
+  // shown so nothing is ever drawn at the wrong size and then jumps.
+  mainWindow.webContents.on('did-finish-load', () => {
+    const zoom = Number(config.load().ui.zoom) || 1;
+    mainWindow.webContents.setZoomFactor(Math.min(1.5, Math.max(1, zoom)));
+  });
+
   mainWindow.once('ready-to-show', () => {
     // Hold the splash a moment so it reads as a start-up screen rather than a
     // flash, then hand over to the real window.
@@ -257,7 +264,13 @@ function buildMenu() {
       label: '&View',
       submenu: [
         { label: 'Refresh', accelerator: 'F5', click: () => send('menu:action', { action: 'refresh' }) },
-        { role: 'resetZoom' }, { role: 'zoomIn' }, { role: 'zoomOut' },
+        { type: 'separator' },
+        { label: 'Bigger Text', accelerator: 'CmdOrCtrl+=',
+          click: () => send('menu:action', { action: 'zoomIn' }) },
+        { label: 'Smaller Text', accelerator: 'CmdOrCtrl+-',
+          click: () => send('menu:action', { action: 'zoomOut' }) },
+        { label: 'Normal Text Size', accelerator: 'CmdOrCtrl+0',
+          click: () => send('menu:action', { action: 'zoomReset' }) },
         { type: 'separator' },
         { role: 'togglefullscreen' },
         ...(isDev ? [{ role: 'toggleDevTools' }] : [])
