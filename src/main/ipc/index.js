@@ -21,7 +21,8 @@ const modules = [
   require('./expenses'),
   require('./invoices'),
   require('./dashboard'),
-  require('./backup')
+  require('./backup'),
+  require('./updates')
 ];
 
 function register(context) {

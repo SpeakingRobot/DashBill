@@ -1141,3 +1141,59 @@ details.faq p {
   background-position: 0 0, 7px 7px;
 }
 .sign-sample { max-height: 96px !important; }
+
+/* ==========================================================================
+   Updates & news
+   ========================================================================== */
+.ver-grid {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px;
+}
+.ver-row {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 10px 14px;
+  border: 1px solid var(--line); border-radius: var(--radius);
+  background: var(--wash);
+}
+.ver-row span {
+  font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--faint);
+}
+.ver-row strong { font-size: 16px; font-variant-numeric: tabular-nums; }
+
+.dl-track {
+  height: 6px; border-radius: 3px; overflow: hidden;
+  background: var(--wash-2); border: 1px solid var(--line);
+}
+.dl-track i {
+  display: block; height: 100%; background: var(--black);
+  transition: width .25s ease;
+}
+
+.notice {
+  border: 1px solid var(--line); border-left-width: 3px; border-radius: var(--radius);
+  padding: 11px 14px; margin-bottom: 10px; background: var(--white);
+}
+.notice:last-child { margin-bottom: 0; }
+.notice.update { border-left-color: var(--black); }
+.notice.warning { border-left-color: var(--bad); background: var(--bad-bg); }
+.notice.info { border-left-color: var(--line-strong); }
+.notice-head { display: flex; align-items: baseline; gap: 9px; font-size: 13.5px; }
+.notice-kind {
+  font-size: 9px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--muted); border: 1px solid var(--line-strong);
+  border-radius: 3px; padding: 1px 5px; flex: 0 0 auto;
+}
+.notice.warning .notice-kind { color: var(--bad); border-color: #e8c3c3; }
+.notice-body { margin-top: 7px; }
+.notice-body p, .notes p {
+  margin: 0 0 7px; font-size: 12.5px; line-height: 1.7; color: var(--ink-2);
+}
+.notice-body p:last-child, .notes p:last-child { margin-bottom: 0; }
+.notes-head { font-weight: 600; color: var(--ink) !important; margin-top: 10px !important; }
+.notes-list { margin: 0 0 8px; padding-left: 18px; }
+.notes-list li { font-size: 12.5px; line-height: 1.7; color: var(--ink-2); margin-bottom: 3px; }
+details.release summary .mono { color: var(--muted); margin-right: 4px; }
+details.release .notes { padding: 2px 18px 12px 0; }
+
+.count.news {
+  background: var(--bad); color: var(--white); border-color: var(--bad);
+}

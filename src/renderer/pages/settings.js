@@ -12,7 +12,7 @@
     confirm, enumOptions, num, badge
   } = window.UI;
 
-  const state = { tab: 'company' };
+  const state = { tab: 'company', forceNews: false };
   let settings = {};
   let info = {};
 
@@ -22,6 +22,7 @@
 
     async render(ctx) {
       if (ctx.params.action === 'paths') state.tab = 'backups';
+      if (ctx.params.action === 'updates') state.tab = 'updates';
 
       const loaded = await api('settings:get');
       settings = loaded.settings || {};
@@ -43,6 +44,7 @@
           tab('invoice', 'Invoice defaults') +
           tab('backups', 'Backups & data') +
           tab('database', 'Database') +
+          tab('updates', 'Updates & news') +
           tab('help', 'Help & tutorial') +
           tab('about', 'About') +
         '</div><div id="set-body"></div>';
@@ -73,6 +75,7 @@
     if (state.tab === 'invoice') return invoiceTab(ctx);
     if (state.tab === 'backups') return backupsTab(ctx);
     if (state.tab === 'database') return databaseTab(ctx);
+    if (state.tab === 'updates') return updatesTab(ctx);
     if (state.tab === 'help') return helpTab(ctx);
     if (state.tab === 'about') return aboutTab(ctx);
     return companyTab(ctx);
@@ -724,6 +727,278 @@
         });
       }
     });
+  }
+
+  // =========================================================================
+  // Updates & news
+  //
+  // A new version is published as a GitHub release; this screen finds it,
+  // downloads it and runs the installer. Nothing of the user's is touched by
+  // that: the books live in their database and the connection details in
+  // their own profile folder, so only the program files are replaced.
+  // =========================================================================
+
+  /**
+   * Render release notes without letting them become markup.
+   *
+   * Release bodies are Markdown written by whoever cut the release. They are
+   * escaped first and only then given the lightest possible structure —
+   * headings, bullets and paragraphs. Nothing in a release note can introduce
+   * a tag, a link target or a script.
+   */
+  function notesHtml(body) {
+    const lines = String(body || '').split(/\r?\n/);
+    let html = '';
+    let inList = false;
+    const closeList = () => { if (inList) { html += '</ul>'; inList = false; } };
+
+    lines.forEach((raw) => {
+      const line = raw.trim();
+      if (!line) { closeList(); return; }
+      if (/^[-*+]\s+/.test(line)) {
+        if (!inList) { html += '<ul class="notes-list">'; inList = true; }
+        html += '<li>' + inline(line.replace(/^[-*+]\s+/, '')) + '</li>';
+        return;
+      }
+      closeList();
+      if (/^#{1,6}\s+/.test(line)) {
+        html += '<p class="notes-head">' + inline(line.replace(/^#{1,6}\s+/, '')) + '</p>';
+        return;
+      }
+      html += '<p>' + inline(line) + '</p>';
+    });
+    closeList();
+    return html || '<p class="faint">No notes were written for this release.</p>';
+  }
+
+  /** Escape, then allow **bold** and `code` and nothing else. */
+  function inline(value) {
+    return esc(value)
+      .replace(/\*\*([^*]{1,200})\*\*/g, '<strong>$1</strong>')
+      .replace(/`([^`]{1,200})`/g, '<code class="inline">$1</code>');
+  }
+
+  function versionRow(label, value) {
+    return '<div class="ver-row"><span>' + esc(label) + '</span><strong>' +
+      esc(value) + '</strong></div>';
+  }
+
+  async function updatesTab(ctx) {
+    const host = document.getElementById('set-body');
+    host.innerHTML = window.UI.loading(4);
+
+    const [status, feed] = await Promise.all([
+      apiSafe('updates:state'),
+      apiSafe('updates:news', { force: Boolean(state.forceNews) })
+    ]);
+    state.forceNews = false;
+    drawUpdates(ctx, status || {}, feed || { releases: [], notices: [] });
+
+    // Opening this screen counts as having read what is on it.
+    if (feed && (feed.unread || 0) > 0) {
+      await apiSafe('updates:markSeen', {
+        version: (feed.newReleases || [])[0],
+        noticeIds: feed.unreadNoticeIds || []
+      });
+      if (window.App.setNewsBadge) window.App.setNewsBadge(0);
+    }
+  }
+
+  /** Redrawn on every push from the updater, so progress is live. */
+  function drawUpdates(ctx, status, feed) {
+    const host = document.getElementById('set-body');
+    if (!host) return;
+    const current = status.current || (info && info.version) || '';
+
+    host.innerHTML =
+      updateCard(status, current) +
+      (feed.offline
+        ? '<div class="banner mt14">' + icon('info', 17) +
+          '<div><strong>No connection to GitHub just now.</strong> Release notes and ' +
+          'messages will appear the next time you are online. Nothing else in the ' +
+          'software needs it.</div></div>'
+        : '') +
+      noticesCard(feed) +
+      releasesCard(feed, current);
+
+    bindActions(host, {
+      check: async (ds, button) => {
+        await window.UI.busy(button, async () => {
+          state.forceNews = true;
+          const next = await apiSafe('updates:check', { force: 1 });
+          if (!next) return;
+          await updatesTab(ctx);
+          toast(next.status === 'available'
+            ? 'Version ' + next.version + ' is available'
+            : 'You are on the latest version', 'success');
+        });
+      },
+      download: async (ds, button) => {
+        await window.UI.busy(button, async () => {
+          const next = await apiSafe('updates:download');
+          if (next) drawUpdates(ctx, next, feed);
+        });
+      },
+      install: async () => {
+        const ok = await confirm({
+          title: 'Install the update',
+          message: 'Close ' + productName() + ' and install version ' +
+            (status.version || '') + '?',
+          detail: 'Your books, your database connection and all your settings stay ' +
+            'exactly as they are — only the program files are replaced. The software ' +
+            'reopens by itself when the installer finishes.',
+          confirmLabel: 'Close and install'
+        });
+        if (!ok) return;
+        await apiSafe('updates:install');
+      },
+      openReleases: () => apiSafe('updates:openReleases'),
+      toggleStart: async (ds, box) => {
+        const on = box.checked ? '1' : '0';
+        await apiSafe('settings:save', { settings: { updates_check_on_start: on } });
+        settings.updates_check_on_start = on;
+        window.App.settings = Object.assign({}, window.App.settings,
+          { updates_check_on_start: on });
+        toast(on === '1'
+          ? 'Will check for updates at start-up'
+          : 'Start-up check switched off', 'success');
+      }
+    });
+
+    // Keep the screen live while a download runs.
+    if (window.App.onUpdateState) {
+      window.App.onUpdateState((next) => {
+        if (window.App.current !== 'settings' || state.tab !== 'updates') return;
+        drawUpdates(ctx, next, feed);
+      });
+    }
+  }
+
+  function updateCard(status, current) {
+    const s = status.status || 'idle';
+    const startOn = String(value('updates_check_on_start') || '1') !== '0';
+
+    let body = '';
+    let foot = '';
+
+    if (s === 'downloading') {
+      const pct = Math.max(2, Number(status.percent) || 0);
+      body =
+        '<p class="small">Downloading version <strong>' + esc(status.version || '') +
+          '</strong>&hellip;</p>' +
+        '<div class="dl-track"><i style="width:' + pct + '%"></i></div>' +
+        '<p class="tiny faint mt8">' + pct + '% &middot; ' +
+          fmt.bytes(status.transferred || 0) + ' of ' + fmt.bytes(status.total || 0) +
+          (status.bytesPerSecond
+            ? ' &middot; ' + fmt.bytes(status.bytesPerSecond) + '/s' : '') +
+        '</p>';
+    } else if (s === 'downloaded') {
+      body = '<div class="banner good" style="margin:0">' + icon('check', 17) +
+        '<div><strong>Version ' + esc(status.version || '') + ' is ready to install.</strong> ' +
+        'The software will close, install, and reopen. Nothing of yours is touched.</div></div>';
+      foot = '<button class="btn" data-action="install">' + icon('download', 15) +
+        'Close and install now</button>';
+    } else if (s === 'available') {
+      body = '<div class="banner warn" style="margin:0">' + icon('download', 17) +
+        '<div><strong>Version ' + esc(status.version || '') + ' is available.</strong> ' +
+        'You are on ' + esc(current) + '. The release notes are below.</div></div>' +
+        (status.error ? '<p class="small neg mt8">' + esc(status.error) + '</p>' : '');
+      foot = (status.canSelfUpdate
+        ? '<button class="btn" data-action="download">' + icon('download', 15) +
+          'Download the update</button>'
+        : '') +
+        '<button class="btn secondary" data-action="openReleases">' +
+        'Open the releases page</button>' +
+        (status.canSelfUpdate
+          ? ''
+          : '<span class="tiny faint">This copy runs from source, so it cannot ' +
+            'install an update itself.</span>');
+    } else if (s === 'error') {
+      body = '<div class="banner bad" style="margin:0">' + icon('alert', 17) +
+        '<div><strong>The update check did not finish.</strong> ' +
+        esc(status.error || '') + '</div></div>';
+    } else if (s === 'current') {
+      body = '<div class="banner good" style="margin:0">' + icon('check', 17) +
+        '<div><strong>You are up to date.</strong> Version ' + esc(current) +
+        ' is the newest release.</div></div>';
+    } else {
+      body = '<p class="small faint" style="margin:0">Press Check for updates to ask ' +
+        'GitHub whether a newer version has been published.</p>';
+    }
+
+    return card({
+      title: 'Software updates',
+      hint: status.checkedAt ? 'last checked ' + fmt.relative(status.checkedAt) : '',
+      body:
+        '<div class="ver-grid mb14">' +
+          versionRow('Installed version', current) +
+          versionRow('Newest release',
+            status.version || (status.checkedAt ? current : 'not checked yet')) +
+        '</div>' +
+        body +
+        '<label class="check mt14" style="margin-bottom:0">' +
+          '<input type="checkbox" data-action="toggleStart"' +
+            (startOn ? ' checked' : '') + '>' +
+          '<span>Check for updates when the software starts' +
+            '<small>Only the version number and the notes are fetched, once a day at ' +
+            'most. Nothing is downloaded or installed without you pressing a ' +
+            'button.</small></span>' +
+        '</label>',
+      foot:
+        '<button class="btn secondary" data-action="check">' + icon('refresh', 15) +
+        'Check for updates</button>' + foot
+    });
+  }
+
+  function noticesCard(feed) {
+    const notices = (feed.notices || []).slice()
+      .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+    if (!notices.length) return '';
+    return '<div class="mt14">' + card({
+      title: 'Messages',
+      hint: 'from the person who maintains this software',
+      body: notices.map((notice) =>
+        '<article class="notice ' + esc(notice.kind) + '">' +
+          '<div class="notice-head">' +
+            '<span class="notice-kind">' + esc(notice.kind) + '</span>' +
+            '<strong>' + esc(notice.title) + '</strong>' +
+            '<span class="spacer"></span>' +
+            (notice.postedAt
+              ? '<span class="tiny faint">' + esc(fmt.date(notice.postedAt)) + '</span>'
+              : '') +
+          '</div>' +
+          (notice.body
+            ? '<div class="notice-body">' + notesHtml(notice.body) + '</div>' : '') +
+        '</article>').join('')
+    }) + '</div>';
+  }
+
+  function releasesCard(feed, current) {
+    const releases = feed.releases || [];
+    if (!releases.length) return '';
+    return '<div class="mt14">' + card({
+      title: 'Release notes',
+      hint: 'newest first',
+      body: releases.map((release, index) => {
+        const isCurrent = release.version === current;
+        return '<details class="faq release"' + (index === 0 ? ' open' : '') + '>' +
+          '<summary>' +
+            '<span class="mono">' + esc(release.version) + '</span> ' +
+            esc(release.title) +
+            (isCurrent ? ' ' + badge('installed', 'good') : '') +
+            (release.publishedAt
+              ? ' <span class="tiny faint">' + esc(fmt.date(release.publishedAt)) +
+                '</span>'
+              : '') +
+          '</summary>' +
+          '<div class="notes">' + notesHtml(release.notes) + '</div>' +
+          '</details>';
+      }).join('') +
+        '<div class="btn-row mt14">' +
+          '<button class="btn sm secondary" data-action="openReleases">' +
+          'See them all on GitHub</button>' +
+        '</div>'
+    }) + '</div>';
   }
 
   // =========================================================================

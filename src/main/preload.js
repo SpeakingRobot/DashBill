@@ -12,13 +12,14 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 /** Channels the main process is allowed to push to the window. */
 const PUSH_CHANNELS = [
-  'db:state', 'backup:done', 'backup:failed', 'menu:navigate', 'menu:action'
+  'db:state', 'backup:done', 'backup:failed', 'menu:navigate', 'menu:action',
+  'updates:state'
 ];
 
 /** Channel prefixes the renderer may invoke. */
 const ALLOWED_PREFIXES = [
   'app:', 'settings:', 'clients:', 'projects:', 'income:', 'expenses:',
-  'invoices:', 'dashboard:', 'backup:'
+  'invoices:', 'dashboard:', 'backup:', 'updates:'
 ];
 
 contextBridge.exposeInMainWorld('api', {

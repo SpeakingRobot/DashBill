@@ -21,3 +21,7 @@ desktop.ini
 
 # Local tooling config
 .claude/
+
+# The admin-only notice publisher. Not part of the product, never published.
+# It is a GitHub-token-holding tool for one person; keep your own copy safe.
+admin/

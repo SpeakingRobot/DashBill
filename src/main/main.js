@@ -17,6 +17,7 @@ const db = require('./db');
 const config = require('./config');
 const ipc = require('./ipc');
 const { runBackup, isDue } = require('./services/backupRunner');
+const updates = require('./services/updates');
 
 const isDev = process.argv.includes('--dev');
 
@@ -81,6 +82,8 @@ function start() {
     createSplash();
     createWindow();
     ipc.register({ isDev });
+    // Progress and results from the updater are pushed, not polled.
+    updates.configure(send);
 
     // Connect in the background: the window must appear even when MySQL is
     // asleep, so the user can read the setup screen and fix it.
@@ -264,6 +267,10 @@ function buildMenu() {
       label: '&Help',
       submenu: [
         { label: 'Where is my data?', click: () => send('menu:navigate', { page: 'settings', action: 'paths' }) },
+        { label: 'Run through this page', accelerator: 'F1', click: () => send('menu:action', { action: 'tour' }) },
+        { label: 'Check for Updates', click: () => send('menu:navigate', { page: 'settings', action: 'updates' }) },
+        { label: "What's New", click: () => send('menu:navigate', { page: 'settings', action: 'updates' }) },
+        { type: 'separator' },
         {
           label: 'About',
           click: () => {

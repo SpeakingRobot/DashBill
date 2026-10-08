@@ -210,6 +210,9 @@ async function seedSettings(target) {
     invoice_footer_note: 'Thank you for your business.',
     invoice_signature_label: '',
     invoice_signature_image: '',
+    updates_seen_version: '',
+    updates_seen_notices: '',
+    updates_check_on_start: '1',
     invoice_round_off: '1',
     owner_name: ''
   };

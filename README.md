@@ -7,9 +7,11 @@
 Brand it with your own business name and logo. Keeps its books in a database
 **you** own — your own free TiDB Cloud cluster, or MySQL on your own machine.
 
-### [⬇️ Download for Windows](https://drive.google.com/file/d/1QND84fW9p9J6Ah_6qDpyZO9jvM1qNu1j/view?usp=sharing)
+### [⬇️ Download for Windows](https://github.com/SpeakingRobot/DashBill/releases/latest)
 
-`DashBill-Setup-1.5.0.exe` · 79 MB · Windows 10/11 64-bit
+`DashBill-Setup-1.6.0.exe` · 79 MB · Windows 10/11 64-bit
+
+*Install it once; after that it updates itself.*
 
 [Install guide](#1-download-and-install) ·
 [First-run setup](#2-first-run-setup) ·
@@ -54,23 +56,28 @@ Brand it with your own business name and logo. Keeps its books in a database
 
 <!-- DOWNLOAD_LINK — update this block when a new version is released -->
 
-### ⬇️ [**Download DashBill-Setup-1.5.0.exe**](https://drive.google.com/file/d/1QND84fW9p9J6Ah_6qDpyZO9jvM1qNu1j/view?usp=sharing) &nbsp;·&nbsp; 79 MB
+### ⬇️ [**Download the latest release**](https://github.com/SpeakingRobot/DashBill/releases/latest) &nbsp;·&nbsp; `DashBill-Setup-1.6.0.exe` &nbsp;·&nbsp; 79 MB
 
-On the Google Drive page, press the **download icon** (⬇) in the top-right
-corner. Drive cannot virus-scan a file this large, so it will warn
-*"DashBill-Setup-1.5.0.exe is too big for Google to scan for viruses"* — press
-**Download anyway**. That message is about the file's size, not its contents.
+On the release page, under **Assets**, click
+**`DashBill-Setup-1.6.0.exe`**. The other files there — `latest.yml` and
+`.blockmap` — are for the in-app updater; you do not need to download them.
+
+**You need exactly one file: `DashBill-Setup-1.6.0.exe`.** It is completely
+self-contained. There are no companion files, no runtime to install first, and
+nothing to unzip. From version 1.6.0 onwards, DashBill finds and installs its
+own updates — see [Installing an update](#installing-an-update).
+
+**Mirror:** the same installer is also on
+[Google Drive](https://drive.google.com/file/d/1QND84fW9p9J6Ah_6qDpyZO9jvM1qNu1j/view?usp=sharing). Drive cannot virus-scan a file this
+large, so it warns *"…is too big for Google to scan for viruses"* — that message
+is about the file's size, not its contents. Press **Download anyway**.
 
 You can also build the installer yourself from this repository — see
 [Building from source](#7-building-from-source).
 
-**You need exactly one file: `DashBill-Setup-1.5.0.exe`.** It is completely
-self-contained. There are no companion files, no runtime to install first, and
-nothing to unzip.
-
 ### Install
 
-1. Double-click **`DashBill-Setup-1.5.0.exe`**.
+1. Double-click **`DashBill-Setup-1.6.0.exe`**.
 2. Windows will almost certainly show a blue box:
    **_"Windows protected your PC"_**. This is expected — see below.
 3. Choose where to install (the default is fine) and press **Install**.
@@ -95,10 +102,38 @@ option in the downloads list.
 
 ### Installing an update
 
-Run the new installer over the top. Your data, your settings and your saved
-database connection are all untouched — they live outside the program folder.
-New database columns are applied automatically on first launch, with nothing for
-you to do.
+DashBill checks GitHub for a newer version and can install it for you.
+
+**Settings → Updates & news → Check for updates.** If a newer release exists you
+get its release notes and a **Download the update** button. When the download
+finishes, **Close and install now** shuts the app, runs the installer and
+reopens it.
+
+**Nothing of yours is touched by an update.** The installer replaces the program
+files in `%LOCALAPPDATA%\Programs\DashBill` and nothing else:
+
+| Yours | Where it lives | Survives an update? |
+|---|---|---|
+| Your books — clients, projects, income, expenses, invoices | Your own database | ✅ never on this machine at all |
+| Your database login | `%APPDATA%\DashBill\config.json` | ✅ outside the program folder |
+| Your logo, signature, invoice numbering, every setting | Your own database | ✅ |
+| Backup folder and schedule | `config.json` | ✅ |
+| Window size and position | `config.json` | ✅ |
+
+New database columns are applied automatically on first launch, so an update
+never needs anything from you afterwards.
+
+A check happens once quietly at start-up — just a version number and the notes,
+never a download. Switch that off on the same screen if you would rather check
+by hand. You can also install by hand at any time: download the new
+`DashBill-Setup-<version>.exe` and run it over the top of the old install.
+
+### Release notes and messages
+
+The same screen shows the release notes for every version, and short messages
+posted by whoever maintains your copy of the software — "version 1.7 is out",
+"this cluster region is faster", and so on. Unread ones put a red dot on
+**Settings** in the sidebar, and reading the page clears it.
 
 ### Uninstalling
 
@@ -239,6 +274,26 @@ on, with running totals of what they have paid and what they still owe.
 **Reports** — income and expenses for any period, by client and by category,
 plus a GST summary for filing time. Everything exports to CSV for your
 accountant.
+
+**Deadlines that speak up** — anything overdue or due within a week is called
+out on Projects, on the dashboard and on the welcome screen, and the Deadline
+column counts down in red. Projects has three tabs across the top with live
+counts: **Pending**, **Just started** and **Completed**.
+
+**Your signature on the bill** — upload a transparent PNG once under
+**Settings → Company profile → Signature** and it prints on the signature line
+above *Authorised Signatory* on every invoice, so you never have to print a bill
+just to sign it.
+
+**A tutorial built into the software** — **Settings → Help & tutorial** has a
+guided run-through of each part of the app and written answers to the questions
+people actually ask. It walks your real screens rather than showing pictures of
+somebody else's. The **?** in the top bar (or <kbd>F1</kbd>) runs through
+whichever page you are looking at.
+
+**Updates and messages** — **Settings → Updates & news** finds new versions on
+GitHub, shows what changed and installs them without touching anything of
+yours. See [Installing an update](#installing-an-update).
 
 ---
 
@@ -427,7 +482,7 @@ npm run dist
 That produces:
 
 ```
-dist\DashBill-Setup-1.5.0.exe
+dist\DashBill-Setup-1.6.0.exe
 ```
 
 **That single file is what you publish.** See
@@ -441,25 +496,67 @@ npm run pack
 
 ### What the `dist` folder contains
 
-After `npm run dist` you get several things. Only one of them is shareable.
+After `npm run dist` you get several things. Two of them go in the release.
 
-| File / folder | What it is | Share it? |
+| File / folder | What it is | Upload it? |
 |---|---|---|
-| **`DashBill-Setup-<version>.exe`** | The installer. Completely self-contained. | ✅ **Yes — this one only** |
+| **`DashBill-Setup-<version>.exe`** | The installer. Completely self-contained. | ✅ **Yes** |
+| **`latest.yml`** | Version number, file name and SHA-512 of that installer. Without it, installed copies can find the release but cannot verify or install it. | ✅ **Yes** |
+| `DashBill-Setup-<version>.exe.blockmap` | Lets an update download only the parts that changed. | ✅ Yes, if you want smaller updates |
 | `win-unpacked/` | The loose build the installer was packed from (~75 files, 271 MB). `DashBill.exe` inside it only runs if the whole folder is beside it. | ❌ No |
-| `*.exe.blockmap` | Used only by auto-update for partial downloads. | ❌ No |
 | `builder-debug.yml` | Build diagnostics. | ❌ No |
 
 ### Releasing a new version
 
-1. Bump `version` in `package.json`.
-2. `npm run dist`.
-3. Publish the new `.exe`. Users run it over the top of the old install; their
-   config and their data are untouched.
+In-app updating works off **GitHub Releases**. A file on Google Drive cannot be
+found by the updater, so the release is what matters; keep the Drive link if you
+like, but point it at the same file.
+
+1. **Bump the version.** Edit `version` in `package.json` — `1.5.0` → `1.6.0`.
+   This is the number the updater compares, so it must go up.
+2. **Build.** `npm run dist`.
+3. **Cut the release.** On GitHub: **Releases → Draft a new release**.
+   - Tag: `v1.6.0` (the leading `v` is fine, it is stripped when comparing).
+   - Title: something a person would read — "Signatures and the tutorial".
+   - Body: the release notes. Plain text with `-` bullets, `**bold**` and
+     `` `code` `` is all DashBill renders; anything else shows as text.
+   - Attach `DashBill-Setup-1.6.0.exe`, `latest.yml` and the `.blockmap`.
+   - Leave **Set as a pre-release** unticked — pre-releases are ignored.
+4. **Publish.** Every installed copy sees it within half an hour, or at once if
+   someone presses Check for updates.
+
+With the GitHub CLI the last two steps are one command:
+
+```bash
+gh release create v1.6.0 "dist/DashBill-Setup-1.6.0.exe" "dist/latest.yml" "dist/DashBill-Setup-1.6.0.exe.blockmap" --title "Signatures and the tutorial" --notes-file notes.md
+```
 
 Schema changes apply automatically: `src/main/schema.sql` runs on every start-up
 and every statement in it is safe to re-run, while columns added after a release
 are applied to existing databases by the migration list in `src/main/db.js`.
+
+**Why not build on the user's machine?** Because it would mean shipping Node,
+npm, electron-builder and about a gigabyte of toolchain to every user, and
+asking a printer in Mapusa to run a build. The installer *is* the build, made
+once here; the app fetches it and verifies its SHA-512 before running anything.
+
+### Posting a message without cutting a release
+
+`admin/` holds a separate little application — the **Notice Publisher** — for
+posting short messages that every installed copy shows under
+**Settings → Updates & news**. It is not part of the product: it is excluded
+from git, is never published, and exists only on your machine.
+
+```bash
+npm run admin
+```
+
+It writes to `notices.json` in this repository through the GitHub API, so every
+install sees the message within half an hour. It needs a **fine-grained**
+personal access token with **Contents: write** on this repository and nothing
+else. `admin/README.md` has the details.
+
+Anything posted that way is **public**, because this repository is public.
 
 ---
 
@@ -744,6 +841,7 @@ linked.
 | <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>C</kbd> | New client |
 | <kbd>Ctrl</kbd>+<kbd>B</kbd> | Back up now |
 | <kbd>Ctrl</kbd>+<kbd>,</kbd> | Settings |
+| <kbd>F1</kbd> | Run through the page you are on |
 | <kbd>F5</kbd> | Refresh the current page |
 | <kbd>Alt</kbd>+<kbd>1</kbd> … <kbd>Alt</kbd>+<kbd>7</kbd> | Jump between tabs |
 
@@ -760,6 +858,17 @@ linked.
   through a single allow-listed bridge and runs under a Content-Security-Policy
   that blocks all network access from the page itself.
 - Every value written to the database goes through a parameterised query.
+- **Updates** are fetched only from `github.com` and `raw.githubusercontent.com`
+  over HTTPS; a redirect anywhere else is refused. The installer's SHA-512 is
+  checked against the signed release metadata before it is run, and nothing is
+  ever downloaded or installed without you pressing a button for it.
+- Release notes and messages fetched from GitHub are **data**. They are shown as
+  text, can never introduce markup or a link target, and cannot tell the
+  software to do anything.
+- The admin **Notice Publisher** holds a GitHub token in plain text in its own
+  data folder. Use a **fine-grained** token limited to this one repository with
+  **Contents: write** and an expiry date, and press **Forget token** on any
+  machine you do not control.
 - **If a connection string has ever been shared — in a chat, an email, a
   screenshot or a support ticket — treat the password as compromised and rotate
   it.** In TiDB Cloud: open the cluster → **Connect** → generate a new password,

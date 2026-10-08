@@ -1,7 +1,7 @@
 {
   "name": "dashbill",
   "productName": "DashBill",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "DashBill - budget, project and GST invoicing software for Windows. Brand it with your own business name and logo; keeps its books in your own TiDB Cloud or local MySQL database.",
   "author": {
     "name": "Samuel Fernandes"
@@ -13,9 +13,11 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "dist": "electron-builder --win",
-    "pack": "electron-builder --win --dir"
+    "pack": "electron-builder --win --dir",
+    "admin": "electron admin/main.js"
   },
   "dependencies": {
+    "electron-updater": "^6.8.9",
     "mysql2": "^3.11.5"
   },
   "devDependencies": {
@@ -62,6 +64,13 @@
       {
         "from": "src/main/schema.sql",
         "to": "schema.sql"
+      }
+    ],
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "SpeakingRobot",
+        "repo": "DashBill"
       }
     ]
   }

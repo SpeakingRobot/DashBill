@@ -22,7 +22,7 @@
     ] },
     { group: 'Books', items: [
       { id: 'reports', label: 'Reports', icon: 'reports' },
-      { id: 'settings', label: 'Settings', icon: 'settings' }
+      { id: 'settings', label: 'Settings', icon: 'settings', news: true }
     ] }
   ];
 
@@ -54,6 +54,7 @@
           '<span class="ico">' + icon(item.icon, 16) + '</span>' +
           '<span>' + esc(item.label) + '</span>' +
           (item.count ? '<span class="count" data-count="' + item.count + '" hidden></span>' : '') +
+          (item.news ? '<span class="count news" data-news hidden></span>' : '') +
           '</button>';
       });
     });
@@ -592,6 +593,43 @@
   }
 
   // =========================================================================
+  // Updates and news
+  //
+  // The check is a version number and a few release notes, nothing more, and
+  // nothing is ever downloaded or installed without the user pressing a
+  // button for it. Being offline is an ordinary state for this program, so a
+  // failed check is silent.
+  // =========================================================================
+
+  let newsCount = 0;
+
+  function setNewsBadge(count) {
+    newsCount = Math.max(0, Number(count) || 0);
+    document.querySelectorAll('#nav [data-news]').forEach((span) => {
+      span.hidden = newsCount <= 0;
+      span.textContent = String(newsCount);
+    });
+  }
+  App.setNewsBadge = setNewsBadge;
+
+  const updateListeners = [];
+  App.onUpdateState = (fn) => {
+    if (typeof fn === 'function' && updateListeners.indexOf(fn) < 0) updateListeners.push(fn);
+  };
+
+  /** Once per launch, in the background, after the window is already usable. */
+  async function checkNewsQuietly() {
+    if (String(App.settings.updates_check_on_start || '1') === '0') return;
+    const feed = await apiSafe('updates:news', { quiet: 1 });
+    if (!feed) return;
+    setNewsBadge(feed.unread || 0);
+    if ((feed.newReleases || []).length) {
+      toast('Version ' + feed.newReleases[0] + ' is available', 'info',
+        'Settings → Updates & news');
+    }
+  }
+
+  // =========================================================================
   // Status strip in the sidebar
   // =========================================================================
 
@@ -682,6 +720,10 @@
     Welcome.alerts(App.counts);
     Welcome.step(96, 'Almost there');
     await Welcome.hide();
+
+    // Deliberately after the welcome screen clears: the window is already
+    // usable, so a slow or absent network delays nothing.
+    setTimeout(checkNewsQuietly, 1200);
   }
 
   /** The "?" in the top bar runs through whichever page you are looking at. */
@@ -757,6 +799,19 @@
     apiSafe('backup:status').then((status) => { if (status) setBackupStatus(status); });
   });
 
+  window.api.on('updates:state', (next) => {
+    updateListeners.forEach((fn) => {
+      try { fn(next); } catch (err) { console.error(err); }
+    });
+    if (next.status === 'downloaded') {
+      toast('Update ready to install', 'success',
+        'Version ' + next.version + ' — Settings → Updates & news');
+    }
+    if (next.status === 'error' && next.error) {
+      toast('Update problem', 'error', next.error);
+    }
+  });
+
   window.api.on('backup:failed', (payload) => {
     toast('Automatic backup failed', 'error', payload.message);
   });
@@ -767,7 +822,10 @@
   });
 
   window.api.on('menu:action', async (payload) => {
-    if (payload.action === 'refresh') {
+    if (payload.action === 'tour') {
+      if (!App.ready || !window.Guide) return;
+      window.Guide.run(window.Guide.topicForPage(App.current || 'dashboard').id);
+    } else if (payload.action === 'refresh') {
       if (App.ready) go(App.current || 'dashboard', App.params);
     } else if (payload.action === 'backup') {
       if (!App.ready) return;

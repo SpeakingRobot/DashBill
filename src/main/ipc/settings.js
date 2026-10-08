@@ -25,7 +25,8 @@ const ALLOWED_KEYS = new Set([
   'invoice_seq_padding', 'invoice_default_gst_mode', 'invoice_default_gst_rate',
   'invoice_default_due_days', 'invoice_default_terms', 'invoice_footer_note',
   'invoice_signature_label', 'invoice_signature_image',
-  'invoice_round_off', 'owner_name', 'last_pdf_folder'
+  'invoice_round_off', 'owner_name', 'last_pdf_folder',
+  'updates_check_on_start'
 ]);
 
 const MAX_LOGO_BYTES = 1024 * 1024; // 1 MB, plenty for a print-quality mark
