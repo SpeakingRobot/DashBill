@@ -7,7 +7,11 @@
 Brand it with your own business name and logo. Keeps its books in a database
 **you** own — your own free TiDB Cloud cluster, or MySQL on your own machine.
 
-[Download](#1-download-and-install) ·
+### [⬇️ Download for Windows](https://drive.google.com/file/d/1QND84fW9p9J6Ah_6qDpyZO9jvM1qNu1j/view?usp=sharing)
+
+`DashBill-Setup-1.2.0.exe` · 79 MB · Windows 10/11 64-bit
+
+[Install guide](#1-download-and-install) ·
 [First-run setup](#2-first-run-setup) ·
 [Build from source](#7-building-from-source) ·
 [Troubleshooting](#9-troubleshooting)
@@ -48,12 +52,17 @@ Brand it with your own business name and logo. Keeps its books in a database
 
 ### Download
 
-> **📥 Installer:** `DashBill-Setup-1.2.0.exe` (79 MB)
->
-> <!-- DOWNLOAD_LINK -->
-> _Download link to be added here._
->
-> You can also build it yourself — see [Building from source](#7-building-from-source).
+<!-- DOWNLOAD_LINK — update this block when a new version is released -->
+
+### ⬇️ [**Download DashBill-Setup-1.2.0.exe**](https://drive.google.com/file/d/1QND84fW9p9J6Ah_6qDpyZO9jvM1qNu1j/view?usp=sharing) &nbsp;·&nbsp; 79 MB
+
+On the Google Drive page, press the **download icon** (⬇) in the top-right
+corner. Drive cannot virus-scan a file this large, so it will warn
+*"DashBill-Setup-1.2.0.exe is too big for Google to scan for viruses"* — press
+**Download anyway**. That message is about the file's size, not its contents.
+
+You can also build the installer yourself from this repository — see
+[Building from source](#7-building-from-source).
 
 **You need exactly one file: `DashBill-Setup-1.2.0.exe`.** It is completely
 self-contained. There are no companion files, no runtime to install first, and
@@ -763,8 +772,7 @@ linked.
 
 **DashBill** — built by **Samuel Fernandes**.
 
-Originally written for Anjoy Graphics, then generalised so that any business can
-install it, point it at their own database and put their own name and logo on
-it.
+Any business can install it, point it at their own database, and put their own
+name and logo on it.
 
 © 2026 Samuel Fernandes. All rights reserved.
