@@ -25,3 +25,7 @@ desktop.ini
 # The admin-only notice publisher. Not part of the product, never published.
 # It is a GitHub-token-holding tool for one person; keep your own copy safe.
 admin/
+
+# Release notes drafted for a `gh release create --notes-file`; not part of
+# the product, and the published copy lives on the release itself.
+release-notes-*.md

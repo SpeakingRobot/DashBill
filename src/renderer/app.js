@@ -219,7 +219,7 @@
     gateEl('gate-host').value = sameKind && saved.host ? saved.host : (isCloud ? '' : '127.0.0.1');
     gateEl('gate-port').value = sameKind && saved.port ? saved.port : (isCloud ? 4000 : 3306);
     gateEl('gate-user').value = sameKind && saved.user ? saved.user : (isCloud ? '' : 'root');
-    gateEl('gate-database').value = saved.database || 'anjoy_billings';
+    gateEl('gate-database').value = saved.database || 'dashbill';
     gateEl('gate-ssl').checked = isCloud;
     gateEl('gate-ssl-note').textContent = isCloud
       ? 'Required by TiDB Cloud and every other hosted database. Leave this on.'

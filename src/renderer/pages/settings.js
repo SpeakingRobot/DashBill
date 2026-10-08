@@ -463,7 +463,7 @@
           '<p class="small" style="margin:0 0 12px;line-height:1.65">A backup is an ' +
           'ordinary <code class="inline">.sql</code> file. You can restore it here, or on ' +
           'any other computer with MySQL using ' +
-          '<code class="inline">mysql -u root -p anjoy_billings &lt; backup.sql</code>.</p>' +
+          '<code class="inline">mysql -u root -p dashbill &lt; backup.sql</code>.</p>' +
           '<div class="btn-row">' +
             '<button class="btn secondary" data-action="saveAs">' + icon('download', 14) +
             'Save a copy elsewhere</button>' +

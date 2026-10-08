@@ -278,8 +278,10 @@ function describe(err) {
       'the cluster prefix, like 1a2b3c4d5e.root — copy it exactly from the Connect ' +
       'dialog, and use the password you generated there.',
     ER_DBACCESS_DENIED_ERROR:
-      'This user is not allowed to use that database. Ask for permission on it, or ' +
-      'enter a database name you do have access to.',
+      'This user is not allowed to use that database. If you entered sys, mysql, ' +
+      'information_schema or performance_schema, those belong to the server itself ' +
+      'and nobody may store data in them — put a name of your own, such as ' +
+      'dashbill, and it will be created for you.',
     ER_BAD_DB_ERROR:
       'That database does not exist and this user cannot create it. Enter the name of ' +
       'a database that already exists.',

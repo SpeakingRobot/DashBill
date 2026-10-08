@@ -200,7 +200,7 @@ module.exports = {
         password: value.password,
         // A connection string often names an existing database such as `test`.
         // Keep the app's own database instead unless one was given.
-        database: value.database || config.load().db.database || 'anjoy_billings',
+        database: value.database || config.load().db.database || 'dashbill',
         ssl: value.ssl
       },
       tlsRequired: requiresTls(value.host)

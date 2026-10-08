@@ -104,11 +104,16 @@
           </div>
           <div class="field">
             <label for="gate-database">Database name</label>
-            <input type="text" id="gate-database" value="anjoy_billings" spellcheck="false">
+            <input type="text" id="gate-database" value="dashbill" spellcheck="false">
             <div class="help">
-              Created automatically on first connection, together with all the tables.
-              Leave this as <code class="inline">anjoy_billings</code> unless you have
-              a reason to change it.
+              A name of your own choosing. It is created for you on first
+              connection, together with all the tables &mdash; it does not have to
+              exist yet. Leave it as <code class="inline">dashbill</code> unless you
+              have a reason to change it, and do not use
+              <code class="inline">sys</code>, <code class="inline">mysql</code>,
+              <code class="inline">information_schema</code> or
+              <code class="inline">performance_schema</code>: those belong to the
+              server itself.
             </div>
           </div>
           <label class="check">

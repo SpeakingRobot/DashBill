@@ -8,7 +8,7 @@
  * files is that they still work on a different machine after this one dies.
  *
  * The output is ordinary SQL: you can restore it from this app, from MySQL
- * Workbench, or from `mysql -u root -p anjoy_billings < backup.sql`.
+ * Workbench, or from `mysql -u root -p dashbill < backup.sql`.
  */
 
 const fs = require('fs');
