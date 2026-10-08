@@ -55,27 +55,17 @@ module.exports = {
 
     const fyFrom = fyStart(now);
 
-    const [
-      monthIncome, monthExpense, prevIncome, prevExpense, fyIncome, fyExpense
-    ] = await Promise.all([
-      sumIncome(thisMonth.from, thisMonth.to),
-      sumExpenses(thisMonth.from, thisMonth.to),
-      sumIncome(lastMonth.from, lastMonth.to),
-      sumExpenses(lastMonth.from, lastMonth.to),
-      sumIncome(fyFrom, now),
-      sumExpenses(fyFrom, now)
-    ]);
-
     // Income vs expenses, month by month, for the dashboard chart.
     const window = Math.min(Math.max(Number(months) || 12, 3), 36);
 
     /*
-     * Every figure below is independent of the others, so they all go to
-     * the database at once rather than one after the next. Against a cloud
-     * cluster that is the difference between one round trip and thirteen,
-     * which was most of what made the dashboard feel slow.
+     * Every figure on the dashboard is independent of the others, so the whole
+     * screen is fetched in a single wave rather than one query after the next.
+     * Against a cluster in another region that is the difference between one
+     * round trip and nineteen, which is what made this page feel slow.
      */
     const [
+      monthIncome, monthExpense, prevIncome, prevExpense, fyIncome, fyExpense,
       clientCountRaw,
       receivables,
       projectStats,
@@ -90,6 +80,12 @@ module.exports = {
       recentIncome,
       recentExpenses
     ] = await Promise.all([
+      sumIncome(thisMonth.from, thisMonth.to),
+      sumExpenses(thisMonth.from, thisMonth.to),
+      sumIncome(lastMonth.from, lastMonth.to),
+      sumExpenses(lastMonth.from, lastMonth.to),
+      sumIncome(fyFrom, now),
+      sumExpenses(fyFrom, now),
       db.scalar('SELECT COUNT(*) FROM clients WHERE is_active = 1'),
       db.one(`
         SELECT COUNT(*) AS invoice_count,

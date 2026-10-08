@@ -30,8 +30,21 @@ const ALLOWED_KEYS = new Set([
 const MAX_LOGO_BYTES = 1024 * 1024; // 1 MB, plenty for a print-quality mark
 
 module.exports = {
-  'settings:get': async () => {
+  /**
+   * The company profile.
+   *
+   * `company_logo` holds a base64 data URL of up to a megabyte. Dragging that
+   * out of a cloud database every time a page asks for the settings is the
+   * single most expensive thing on this screen, and it changes almost never —
+   * so it is left out unless the caller says it needs it. The window fetches
+   * it once at start-up for the sidebar and keeps it.
+   */
+  'settings:get': async ({ withLogo } = {}) => {
     const settings = db.isReady() ? await readSettings(db) : {};
+    if (!withLogo && settings.company_logo !== undefined) {
+      settings.has_logo = settings.company_logo ? '1' : '';
+      delete settings.company_logo;
+    }
     return {
       settings,
       config: config.publicConfig(),
@@ -145,18 +158,21 @@ module.exports = {
     if (!db.isReady()) {
       return { connected: false, error: db.lastError(), config: cfg.db };
     }
-    const version = await db.scalar('SELECT VERSION()');
-    const size = await db.one(`
-      SELECT COALESCE(SUM(data_length + index_length), 0) AS bytes,
-             COUNT(*) AS tables
-      FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()`);
-    const counts = await db.one(`
-      SELECT
-        (SELECT COUNT(*) FROM clients)  AS clients,
-        (SELECT COUNT(*) FROM projects) AS projects,
-        (SELECT COUNT(*) FROM incomes)  AS incomes,
-        (SELECT COUNT(*) FROM expenses) AS expenses,
-        (SELECT COUNT(*) FROM invoices) AS invoices`);
+    // Three independent lookups; no reason to wait for each in turn.
+    const [version, size, counts] = await Promise.all([
+      db.scalar('SELECT VERSION()'),
+      db.one(`
+        SELECT COALESCE(SUM(data_length + index_length), 0) AS bytes,
+               COUNT(*) AS tables
+        FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE()`),
+      db.one(`
+        SELECT
+          (SELECT COUNT(*) FROM clients)  AS clients,
+          (SELECT COUNT(*) FROM projects) AS projects,
+          (SELECT COUNT(*) FROM incomes)  AS incomes,
+          (SELECT COUNT(*) FROM expenses) AS expenses,
+          (SELECT COUNT(*) FROM invoices) AS invoices`)
+    ]);
     return { connected: true, version, size, counts, config: cfg.db };
   },
 

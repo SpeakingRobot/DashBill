@@ -70,36 +70,47 @@ module.exports = {
   // -- one-off expenses ----------------------------------------------------
   'expenses:list': async (filters = {}) => {
     const { clause, params } = buildFilter(filters);
-    const rows = await db.query(`
-      SELECT e.*, ec.name AS category_name, ec.kind AS category_kind,
-             p.title AS project_title, r.title AS recurring_title
-      FROM expenses e
-      LEFT JOIN expense_categories ec ON ec.id = e.category_id
-      LEFT JOIN projects p ON p.id = e.project_id
-      LEFT JOIN recurring_expenses r ON r.id = e.recurring_id
-      ${clause}
-      ORDER BY e.spent_on DESC, e.id DESC
-      LIMIT 2000`, params);
+    /*
+     * The rows and the three breakdowns are independent views of the same
+     * filter, so they go to the database together rather than in sequence.
+     */
+    const [
+      rows,
+      totals,
+      byCategory,
+      byKind
+    ] = await Promise.all([
+      db.query(`
+        SELECT e.*, ec.name AS category_name, ec.kind AS category_kind,
+               p.title AS project_title, r.title AS recurring_title
+        FROM expenses e
+        LEFT JOIN expense_categories ec ON ec.id = e.category_id
+        LEFT JOIN projects p ON p.id = e.project_id
+        LEFT JOIN recurring_expenses r ON r.id = e.recurring_id
+        ${clause}
+        ORDER BY e.spent_on DESC, e.id DESC
+        LIMIT 2000`, params),
+      db.one(`
+        SELECT COALESCE(SUM(e.amount), 0) AS total, COUNT(*) AS entries
+        FROM expenses e LEFT JOIN expense_categories ec ON ec.id = e.category_id
+        ${clause}`, params),
+      db.query(`
+        SELECT COALESCE(ec.name, '(Uncategorised)') AS category_name,
+               COALESCE(ec.kind, 'other') AS category_kind,
+               COALESCE(SUM(e.amount), 0) AS total, COUNT(*) AS entries
+        FROM expenses e LEFT JOIN expense_categories ec ON ec.id = e.category_id
+        ${clause}
+        GROUP BY ec.id, ec.name, ec.kind ORDER BY total DESC`, params),
+      db.query(`
+        SELECT COALESCE(ec.kind, 'other') AS kind,
+               COALESCE(SUM(e.amount), 0) AS total, COUNT(*) AS entries
+        FROM expenses e LEFT JOIN expense_categories ec ON ec.id = e.category_id
+        ${clause}
+        GROUP BY ec.kind ORDER BY total DESC`, params)
+    ]);
 
-    const totals = await db.one(`
-      SELECT COALESCE(SUM(e.amount), 0) AS total, COUNT(*) AS entries
-      FROM expenses e LEFT JOIN expense_categories ec ON ec.id = e.category_id
-      ${clause}`, params);
 
-    const byCategory = await db.query(`
-      SELECT COALESCE(ec.name, '(Uncategorised)') AS category_name,
-             COALESCE(ec.kind, 'other') AS category_kind,
-             COALESCE(SUM(e.amount), 0) AS total, COUNT(*) AS entries
-      FROM expenses e LEFT JOIN expense_categories ec ON ec.id = e.category_id
-      ${clause}
-      GROUP BY ec.id, ec.name, ec.kind ORDER BY total DESC`, params);
 
-    const byKind = await db.query(`
-      SELECT COALESCE(ec.kind, 'other') AS kind,
-             COALESCE(SUM(e.amount), 0) AS total, COUNT(*) AS entries
-      FROM expenses e LEFT JOIN expense_categories ec ON ec.id = e.category_id
-      ${clause}
-      GROUP BY ec.kind ORDER BY total DESC`, params);
 
     return { rows, totals, byCategory, byKind };
   },

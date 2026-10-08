@@ -71,23 +71,29 @@ module.exports = {
   ),
 
   'clients:get': async ({ id }) => {
-    const client = await db.one('SELECT * FROM clients WHERE id = ?', [id]);
+    /*
+     * The client and their projects, payments and invoices are independent
+     * lookups, so the record opens in one round trip rather than four.
+     */
+    const [client, projects, incomes, invoices] = await Promise.all([
+      db.one('SELECT * FROM clients WHERE id = ?', [id]),
+      db.query(
+        `SELECT id, title, amount, status, payment_status, due_date, completed_on
+         FROM projects WHERE client_id = ? ORDER BY COALESCE(due_date, created_at) DESC`,
+        [id]
+      ),
+      db.query(
+        `SELECT id, amount, received_on, category, description, method, source
+         FROM incomes WHERE client_id = ? ORDER BY received_on DESC LIMIT 100`,
+        [id]
+      ),
+      db.query(
+        `SELECT id, invoice_number, invoice_date, total, amount_paid, status
+         FROM invoices WHERE client_id = ? ORDER BY invoice_date DESC LIMIT 100`,
+        [id]
+      )
+    ]);
     if (!client) throw new Error('Client not found.');
-    const projects = await db.query(
-      `SELECT id, title, amount, status, payment_status, due_date, completed_on
-       FROM projects WHERE client_id = ? ORDER BY COALESCE(due_date, created_at) DESC`,
-      [id]
-    );
-    const incomes = await db.query(
-      `SELECT id, amount, received_on, category, description, method, source
-       FROM incomes WHERE client_id = ? ORDER BY received_on DESC LIMIT 100`,
-      [id]
-    );
-    const invoices = await db.query(
-      `SELECT id, invoice_number, invoice_date, total, amount_paid, status
-       FROM invoices WHERE client_id = ? ORDER BY invoice_date DESC LIMIT 100`,
-      [id]
-    );
     return { client, projects, incomes, invoices };
   },
 

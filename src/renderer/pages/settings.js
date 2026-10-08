@@ -26,6 +26,12 @@
       const loaded = await api('settings:get');
       settings = loaded.settings || {};
       info = loaded.app || {};
+      // The logo is deliberately left out of that response; the copy fetched
+      // at start-up is still good, so reuse it rather than pulling a megabyte
+      // of base64 back out of the database.
+      if (settings.company_logo === undefined) {
+        settings.company_logo = (window.App.settings || {}).company_logo || '';
+      }
 
       ctx.el.innerHTML =
         '<div class="tabs">' +
@@ -473,7 +479,17 @@
       },
 
       restoreFile: async (ds) => {
-        const result = await apiSafe('backup:restore', { path: ds.path });
+        const ok = await confirm({
+          title: 'Restore from backup',
+          message: 'This replaces everything currently in the database.',
+          detail: 'Every client, project, income entry, expense and invoice is ' +
+            'replaced with the contents of ' + ds.name + '. A safety copy of your ' +
+            'present data is taken first, so this can be undone.',
+          confirmLabel: 'Replace my data',
+          danger: true
+        });
+        if (!ok) return;
+        const result = await apiSafe('backup:restore', { path: ds.path, confirmed: 1 });
         if (result && !result.canceled) {
           toast('Database restored from ' + ds.name, 'success');
           ctx.go('dashboard');

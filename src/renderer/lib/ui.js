@@ -274,6 +274,8 @@
 
     root.appendChild(wrap);
     root.classList.add('open');
+    // A dialog on screen means we are waiting for the person, not the network.
+    document.body.classList.remove('is-working');
 
     const bodyEl = wrap.querySelector('.modal-body');
     const errorEl = wrap.querySelector('.modal-error');
@@ -299,6 +301,9 @@
         wrap.remove();
         if (!root.children.length) root.classList.remove('open');
         document.removeEventListener('keydown', onKey);
+        // However it was dismissed — button, backdrop or Escape — the opener
+        // gets told, so a dialog that answers a question always resolves.
+        if (typeof options.onClose === 'function') options.onClose();
       }
     };
 
@@ -328,13 +333,95 @@
     return handle;
   }
 
-  /** Native OS confirmation. Returns true when confirmed. */
-  async function confirm(options) {
-    const result = await api('app:confirm', options);
-    return Boolean(result && result.confirmed);
+  /**
+   * Ask a yes/no question, in the application's own styling.
+   *
+   * This used to be the operating system's message box, which looked nothing
+   * like the rest of the software. It is now an ordinary modal, so it stacks
+   * correctly on top of whatever opened it, and Escape, the close button and
+   * the backdrop all answer "no" rather than leaving the caller waiting.
+   *
+   * @returns {Promise<boolean>}
+   */
+  function confirm(options) {
+    const cfg = options || {};
+    return new Promise((resolve) => {
+      let answered = false;
+      const finish = (value) => {
+        if (answered) return;
+        answered = true;
+        resolve(value);
+      };
+
+      const handle = modal({
+        title: cfg.title || 'Please confirm',
+        size: 'narrow',
+        lockBackdrop: Boolean(cfg.danger),
+        body:
+          '<div class="confirm' + (cfg.danger ? ' danger' : '') + '">' +
+            '<span class="confirm-icon">' +
+              icon(cfg.danger ? 'alert' : 'info', 20) + '</span>' +
+            '<div>' +
+              '<p class="confirm-message">' + esc(cfg.message || 'Are you sure?') + '</p>' +
+              (cfg.detail
+                ? '<p class="confirm-detail">' + esc(cfg.detail) + '</p>' : '') +
+            '</div>' +
+          '</div>',
+        footer:
+          '<button class="btn secondary" data-answer="no">' +
+            esc(cfg.cancelLabel || 'Cancel') + '</button>' +
+          '<span class="spacer"></span>' +
+          '<button class="btn' + (cfg.danger ? ' danger-solid' : '') + '" data-answer="yes">' +
+            esc(cfg.confirmLabel || 'Continue') + '</button>',
+        // Dismissed any other way counts as "no".
+        onClose: () => finish(false)
+      });
+
+      handle.el.querySelectorAll('[data-answer]').forEach((button) => {
+        button.addEventListener('click', () => {
+          finish(button.getAttribute('data-answer') === 'yes');
+          handle.close();
+        });
+      });
+
+      // Enter confirms, so a quick yes needs no mouse.
+      const yes = handle.el.querySelector('[data-answer="yes"]');
+      handle.el.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') { event.preventDefault(); yes.click(); }
+      });
+      setTimeout(() => yes.focus(), 40);
+    });
   }
 
-  function alertBox(options) { return api('app:message', options); }
+  /** Tell the person something, in the application's own styling. */
+  function alertBox(options) {
+    const cfg = options || {};
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = () => { if (!done) { done = true; resolve(); } };
+      const handle = modal({
+        title: cfg.title || '',
+        size: 'narrow',
+        body:
+          '<div class="confirm' + (cfg.type === 'error' ? ' danger' : '') + '">' +
+            '<span class="confirm-icon">' +
+              icon(cfg.type === 'error' ? 'alert' : 'info', 20) + '</span>' +
+            '<div>' +
+              '<p class="confirm-message">' + esc(cfg.message || '') + '</p>' +
+              (cfg.detail
+                ? '<p class="confirm-detail">' + esc(cfg.detail) + '</p>' : '') +
+            '</div>' +
+          '</div>',
+        footer: '<span class="spacer"></span>' +
+          '<button class="btn" data-close>' + esc(cfg.okLabel || 'OK') + '</button>',
+        onClose: finish
+      });
+      setTimeout(() => {
+        const ok = handle.el.querySelector('.modal-foot .btn');
+        if (ok) ok.focus();
+      }, 40);
+    });
+  }
 
   // =========================================================================
   // Forms

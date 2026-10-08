@@ -9,6 +9,23 @@ const { syncProjectPayment } = require('../services/projectPayments');
 const STATUSES = ['planned', 'in_progress', 'submitted', 'completed', 'on_hold', 'cancelled'];
 const METHODS = ['cash', 'upi', 'bank_transfer', 'cheque', 'card', 'other'];
 
+/**
+ * One project in exactly the shape `projects:list` returns.
+ *
+ * Status changes hand this back so the window can update the single row that
+ * changed. Reloading the whole list instead cost a second round trip to the
+ * database, which is what made marking a project completed feel sluggish.
+ */
+async function listRow(conn, id) {
+  return conn.one(`
+    SELECT p.*, c.name AS client_name, c.company AS client_company,
+           (p.amount - p.amount_paid) AS balance,
+           (SELECT COUNT(*) FROM invoices i WHERE i.project_id = p.id) AS invoice_count
+    FROM projects p
+    LEFT JOIN clients c ON c.id = p.client_id
+    WHERE p.id = ?`, [id]);
+}
+
 module.exports = {
   'projects:list': async ({ search, status, paymentStatus, clientId, from, to } = {}) => {
     const where = [];
@@ -50,24 +67,35 @@ module.exports = {
   },
 
   'projects:get': async ({ id }) => {
-    const project = await db.one(`
-      SELECT p.*, c.name AS client_name, c.company AS client_company
-      FROM projects p LEFT JOIN clients c ON c.id = p.client_id
-      WHERE p.id = ?`, [id]);
+    /*
+     * The project and its payments, invoices and costs are independent
+     * lookups, so the detail view costs one round trip, not four.
+     */
+    const [
+      project,
+      payments,
+      invoices,
+      expenses
+    ] = await Promise.all([
+      db.one(`
+        SELECT p.*, c.name AS client_name, c.company AS client_company
+        FROM projects p LEFT JOIN clients c ON c.id = p.client_id
+        WHERE p.id = ?`, [id]),
+      db.query(
+        `SELECT id, amount, received_on, method, reference, description, source
+         FROM incomes WHERE project_id = ? ORDER BY received_on DESC, id DESC`, [id]
+      ),
+      db.query(
+        `SELECT id, invoice_number, invoice_date, total, amount_paid, status
+         FROM invoices WHERE project_id = ? ORDER BY invoice_date DESC`, [id]
+      ),
+      db.query(
+        `SELECT e.id, e.title, e.amount, e.spent_on, ec.name AS category_name
+         FROM expenses e LEFT JOIN expense_categories ec ON ec.id = e.category_id
+         WHERE e.project_id = ? ORDER BY e.spent_on DESC`, [id]
+      )
+    ]);
     if (!project) throw new Error('Project not found.');
-    const payments = await db.query(
-      `SELECT id, amount, received_on, method, reference, description, source
-       FROM incomes WHERE project_id = ? ORDER BY received_on DESC, id DESC`, [id]
-    );
-    const invoices = await db.query(
-      `SELECT id, invoice_number, invoice_date, total, amount_paid, status
-       FROM invoices WHERE project_id = ? ORDER BY invoice_date DESC`, [id]
-    );
-    const expenses = await db.query(
-      `SELECT e.id, e.title, e.amount, e.spent_on, ec.name AS category_name
-       FROM expenses e LEFT JOIN expense_categories ec ON ec.id = e.category_id
-       WHERE e.project_id = ? ORDER BY e.spent_on DESC`, [id]
-    );
     return { project, payments, invoices, expenses };
   },
 
@@ -135,7 +163,7 @@ module.exports = {
     );
     await logActivity(conn, 'project', id, next,
       `Project "${project.title}" marked ${next.replace('_', ' ')}`);
-    return { id, status: next, completed_on: completedOn };
+    return { id, status: next, completed_on: completedOn, row: await listRow(conn, id) };
   }),
 
   /**
@@ -168,7 +196,10 @@ module.exports = {
     const state = await syncProjectPayment(conn, project.id);
     await logActivity(conn, 'project', project.id, 'payment',
       `₹${amount} received for "${project.title}"`);
-    return { id: project.id, income_id: result.insertId, ...state };
+    return {
+      id: project.id, income_id: result.insertId, ...state,
+      row: await listRow(conn, project.id)
+    };
   }),
 
   /**
@@ -204,7 +235,10 @@ module.exports = {
     const state = await syncProjectPayment(conn, project.id);
     await logActivity(conn, 'project', project.id, 'paid',
       `Project "${project.title}" marked PAID (₹${balance})`);
-    return { id: project.id, income_id: result.insertId, ...state };
+    return {
+      id: project.id, income_id: result.insertId, ...state,
+      row: await listRow(conn, project.id)
+    };
   }),
 
   'projects:delete': async ({ id }) => db.tx(async (conn) => {

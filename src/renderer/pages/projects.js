@@ -26,6 +26,9 @@
 
   const state = { search: '', status: 'open', paymentStatus: '', clientId: '' };
   let clients = [];
+  // The rows currently on screen. A status change patches the one that moved
+  // and redraws from here, instead of asking the database for the lot again.
+  let currentRows = [];
 
   window.Pages.projects = {
     title: 'Projects',
@@ -109,6 +112,7 @@
   }
 
   function renderProjects(ctx, rows) {
+    currentRows = rows;
     const host = document.getElementById('proj-body');
 
     const value = rows.reduce((sum, row) => sum + num(row.amount), 0);
@@ -242,13 +246,27 @@
   // Status changes and payments
   // =========================================================================
 
+  /**
+   * Replace one row with the version the server just returned and redraw.
+   * No round trip, so the badge changes the instant the action completes.
+   */
+  function applyRow(ctx, row) {
+    if (!row) { load(ctx); return; }
+    const index = currentRows.findIndex((r) => Number(r.id) === Number(row.id));
+    const rows = currentRows.slice();
+    if (index >= 0) rows[index] = row;
+    else rows.unshift(row);
+    renderProjects(ctx, rows);
+  }
+
   async function advance(ctx, ds) {
     const result = await apiSafe('projects:setStatus', {
       id: Number(ds.id), status: ds.status
     });
     if (!result) return;
+    // Update the row first so the new status is on screen before anything else.
+    applyRow(ctx, result.row);
     toast('"' + ds.title + '" is now ' + fmt.label(ds.status).toLowerCase(), 'success');
-    load(ctx);
 
     // Completing a project is the moment to raise the bill, so offer it.
     if (ds.status === 'completed') {
@@ -272,7 +290,7 @@
     });
     if (!ok) return;
     const result = await apiSafe('projects:markPaid', { id: Number(ds.id) });
-    if (result) { toast('Project marked paid', 'success'); load(ctx); }
+    if (result) { applyRow(ctx, result.row); toast('Project marked paid', 'success'); }
   }
 
   function paymentDialog(ctx, id, projectInfo) {
@@ -311,10 +329,10 @@
       if (!num(payload.amount)) { handle.error('Enter an amount greater than zero.'); return; }
       await window.UI.busy(event.currentTarget, async () => {
         try {
-          await api('projects:recordPayment', Object.assign({ id }, payload));
+          const saved = await api('projects:recordPayment', Object.assign({ id }, payload));
           handle.close();
+          applyRow(ctx, saved.row);
           toast('Payment recorded', 'success', 'It is now in your Income ledger too.');
-          load(ctx);
         } catch (err) {
           handle.error(err.message);
         }

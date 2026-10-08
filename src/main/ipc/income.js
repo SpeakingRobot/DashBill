@@ -36,40 +36,52 @@ module.exports = {
 
   'income:list': async (filters = {}) => {
     const { clause, params } = buildFilter(filters);
-    const rows = await db.query(`
-      SELECT i.*, c.name AS client_name, c.company AS client_company,
-             p.title AS project_title, inv.invoice_number
-      FROM incomes i
-      LEFT JOIN clients c  ON c.id = i.client_id
-      LEFT JOIN projects p ON p.id = i.project_id
-      LEFT JOIN invoices inv ON inv.id = i.invoice_id
-      ${clause}
-      ORDER BY i.received_on DESC, i.id DESC
-      LIMIT 2000`, params);
+    /*
+     * The rows and the three summaries are independent views of the same
+     * filter, so they are fetched together. Run one after another they cost
+     * four round trips, which is what made this page lag behind the others.
+     */
+    const [
+      rows,
+      totals,
+      byCategory,
+      byClient
+    ] = await Promise.all([
+      db.query(`
+        SELECT i.*, c.name AS client_name, c.company AS client_company,
+               p.title AS project_title, inv.invoice_number
+        FROM incomes i
+        LEFT JOIN clients c  ON c.id = i.client_id
+        LEFT JOIN projects p ON p.id = i.project_id
+        LEFT JOIN invoices inv ON inv.id = i.invoice_id
+        ${clause}
+        ORDER BY i.received_on DESC, i.id DESC
+        LIMIT 2000`, params),
+      db.one(`
+        SELECT COALESCE(SUM(i.amount), 0) AS total, COUNT(*) AS entries
+        FROM incomes i
+        LEFT JOIN clients c  ON c.id = i.client_id
+        LEFT JOIN projects p ON p.id = i.project_id
+        ${clause}`, params),
+      db.query(`
+        SELECT i.category, COALESCE(SUM(i.amount), 0) AS total, COUNT(*) AS entries
+        FROM incomes i
+        LEFT JOIN clients c  ON c.id = i.client_id
+        LEFT JOIN projects p ON p.id = i.project_id
+        ${clause}
+        GROUP BY i.category ORDER BY total DESC`, params),
+      db.query(`
+        SELECT COALESCE(c.name, '(No client)') AS client_name,
+               COALESCE(SUM(i.amount), 0) AS total, COUNT(*) AS entries
+        FROM incomes i
+        LEFT JOIN clients c  ON c.id = i.client_id
+        LEFT JOIN projects p ON p.id = i.project_id
+        ${clause}
+        GROUP BY c.id, c.name ORDER BY total DESC LIMIT 15`, params)
+    ]);
 
-    const totals = await db.one(`
-      SELECT COALESCE(SUM(i.amount), 0) AS total, COUNT(*) AS entries
-      FROM incomes i
-      LEFT JOIN clients c  ON c.id = i.client_id
-      LEFT JOIN projects p ON p.id = i.project_id
-      ${clause}`, params);
 
-    const byCategory = await db.query(`
-      SELECT i.category, COALESCE(SUM(i.amount), 0) AS total, COUNT(*) AS entries
-      FROM incomes i
-      LEFT JOIN clients c  ON c.id = i.client_id
-      LEFT JOIN projects p ON p.id = i.project_id
-      ${clause}
-      GROUP BY i.category ORDER BY total DESC`, params);
 
-    const byClient = await db.query(`
-      SELECT COALESCE(c.name, '(No client)') AS client_name,
-             COALESCE(SUM(i.amount), 0) AS total, COUNT(*) AS entries
-      FROM incomes i
-      LEFT JOIN clients c  ON c.id = i.client_id
-      LEFT JOIN projects p ON p.id = i.project_id
-      ${clause}
-      GROUP BY c.id, c.name ORDER BY total DESC LIMIT 15`, params);
 
     return { rows, totals, byCategory, byClient };
   },

@@ -465,7 +465,8 @@
   // =========================================================================
 
   async function loadSettings() {
-    const result = await apiSafe('settings:get');
+    // Once per session, with the logo; later reads leave it out and reuse this.
+    const result = await apiSafe('settings:get', { withLogo: 1 });
     if (result && result.settings) {
       App.settings = result.settings;
       window.UI.setCurrency(result.settings.currency_symbol);
