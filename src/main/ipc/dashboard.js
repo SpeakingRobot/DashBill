@@ -38,6 +38,14 @@ module.exports = {
             AND due_date IS NOT NULL AND due_date < CURDATE())            AS overdueInvoices,
         (SELECT COUNT(*) FROM recurring_expenses
           WHERE is_active = 1 AND next_due_date <= CURDATE())             AS dueRecurring,
+        (SELECT COUNT(*) FROM projects
+          WHERE status IN ('planned','in_progress','submitted','on_hold')
+            AND due_date IS NOT NULL AND due_date < CURDATE())            AS overdueProjects,
+        (SELECT COUNT(*) FROM projects
+          WHERE status IN ('planned','in_progress','submitted','on_hold')
+            AND due_date IS NOT NULL
+            AND due_date BETWEEN CURDATE()
+                             AND DATE_ADD(CURDATE(), INTERVAL 7 DAY))      AS dueSoonProjects,
         (SELECT COUNT(*) FROM clients WHERE is_active = 1)                 AS clients`);
     return row || {};
   },

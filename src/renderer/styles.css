@@ -868,3 +868,276 @@ body.is-working #topbar-actions .btn { pointer-events: none; }
   background: var(--bad); color: var(--white); border-color: var(--bad);
 }
 .btn.danger-solid:hover { background: #7f1d1d; border-color: #7f1d1d; }
+
+/* ==========================================================================
+   Welcome screen
+
+   Black, quiet, and gone in under two seconds. The bar is a real measure of
+   the start-up work rather than an animation on a timer, so it never sits at
+   90% while the window waits for something.
+   ========================================================================== */
+#welcome {
+  position: fixed; inset: 0; z-index: 110;
+  display: none;
+  background: var(--black);
+  color: var(--white);
+  cursor: pointer;
+  user-select: none;
+}
+#welcome.open { display: grid; place-items: center; }
+#welcome.leaving { animation: welcome-out .38s ease forwards; }
+@keyframes welcome-out { to { opacity: 0; transform: scale(1.015); } }
+
+.welcome-inner {
+  text-align: center;
+  padding: 0 32px;
+  max-width: 560px;
+  animation: welcome-in .5s cubic-bezier(.2, .7, .3, 1) both;
+}
+@keyframes welcome-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: none; }
+}
+
+.welcome-mark {
+  width: 74px; height: 74px; margin: 0 auto 26px;
+  border: 1.5px solid rgba(255, 255, 255, .5);
+  border-radius: 18px;
+  display: grid; place-items: center;
+  overflow: hidden;
+}
+.welcome-mark.has-logo { border-color: rgba(255, 255, 255, .22); background: #fff; }
+.welcome-mark img { width: 100%; height: 100%; object-fit: contain; padding: 9px; }
+
+.welcome-bars { display: flex; align-items: flex-end; gap: 5px; height: 30px; }
+.welcome-bars i {
+  display: block; width: 7px; background: #fff; border-radius: 1px;
+  animation: welcome-grow 1.5s ease-in-out infinite;
+}
+.welcome-bars i:nth-child(1) { height: 12px; animation-delay: 0s; }
+.welcome-bars i:nth-child(2) { height: 21px; animation-delay: .18s; }
+.welcome-bars i:nth-child(3) { height: 30px; animation-delay: .36s; }
+@keyframes welcome-grow {
+  0%, 100% { transform: scaleY(.5); transform-origin: bottom; }
+  50%      { transform: scaleY(1);  transform-origin: bottom; }
+}
+
+.welcome-greet {
+  font-size: 10px; letter-spacing: .3em; text-transform: uppercase;
+  color: rgba(255, 255, 255, .5);
+}
+.welcome-name {
+  margin: 10px 0 0;
+  font-size: 34px; font-weight: 300; letter-spacing: -.02em; line-height: 1.15;
+}
+.welcome-quote {
+  margin: 20px auto 0; max-width: 420px;
+  font-size: 14px; line-height: 1.7; color: rgba(255, 255, 255, .62);
+  font-style: italic;
+}
+.welcome-alerts { min-height: 26px; margin-top: 18px; }
+.welcome-alert {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 5px 12px; border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, .22);
+  font-size: 11.5px; color: rgba(255, 255, 255, .8);
+}
+.welcome-alert svg { opacity: .8; }
+
+.welcome-progress { margin-top: 34px; }
+.welcome-track {
+  height: 2px; border-radius: 2px; overflow: hidden;
+  background: rgba(255, 255, 255, .14);
+}
+.welcome-track i {
+  display: block; height: 100%; width: 0; background: #fff;
+  transition: width .45s cubic-bezier(.3, .8, .3, 1);
+}
+.welcome-step {
+  margin-top: 11px;
+  font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase;
+  color: rgba(255, 255, 255, .42);
+}
+
+.welcome-foot {
+  position: absolute; bottom: 22px; left: 0; right: 0;
+  text-align: center; font-size: 10.5px; color: rgba(255, 255, 255, .3);
+}
+
+/* ==========================================================================
+   Guided run-through
+   ========================================================================== */
+#tour { display: none; }
+#tour.open { display: block; }
+
+.tour-ring {
+  position: fixed; z-index: 88;
+  border: 2px solid var(--black);
+  border-radius: 6px;
+  box-shadow: 0 0 0 9999px rgba(10, 10, 10, .34);
+  pointer-events: none;
+  transition: left .22s ease, top .22s ease, width .22s ease, height .22s ease;
+}
+
+.tour-card {
+  position: fixed; z-index: 90;
+  left: 50%; bottom: 26px; transform: translateX(-50%);
+  width: min(460px, calc(100vw - 48px));
+  background: var(--white);
+  border: 1px solid var(--black);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .32);
+  overflow: hidden;
+  animation: tour-in .25s ease-out;
+}
+@keyframes tour-in { from { opacity: 0; transform: translate(-50%, 12px); } }
+
+.tour-progress { height: 2px; background: var(--wash-2); }
+.tour-progress i {
+  display: block; height: 100%; width: 0; background: var(--black);
+  transition: width .3s ease;
+}
+.tour-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 9px 10px 9px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.tour-topic {
+  font-size: 10px; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--muted); font-weight: 600;
+}
+.tour-count { font-size: 11px; color: var(--faint); }
+.tour-body { padding: 15px 16px 4px; }
+.tour-body h3 { margin: 0 0 7px; font-size: 15px; font-weight: 600; }
+.tour-body p { margin: 0; font-size: 13px; line-height: 1.65; color: var(--ink-2); }
+.tour-foot {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 16px 14px;
+}
+.tour-foot .spacer { flex: 1 1 auto; }
+
+/* ==========================================================================
+   Help & tutorial tab
+   ========================================================================== */
+.help-hero {
+  display: flex; align-items: center; gap: 20px;
+  padding: 22px 24px;
+  border: 1px solid var(--black); border-radius: var(--radius-lg);
+  background: var(--black); color: var(--white);
+}
+.help-hero h2 { margin: 0 0 7px; font-size: 19px; font-weight: 500; }
+.help-hero p {
+  margin: 0 0 14px; max-width: 54ch;
+  font-size: 13px; line-height: 1.65; color: rgba(255, 255, 255, .66);
+}
+.help-hero .btn-row { align-items: center; gap: 14px; }
+.help-hero .btn {
+  background: var(--white); color: var(--black); border-color: var(--white);
+}
+.help-hero .btn:hover { background: #e9e9e9; }
+.help-hero .tiny { color: rgba(255, 255, 255, .45) !important; }
+.help-hero-mark {
+  margin-left: auto; flex: 0 0 auto;
+  color: rgba(255, 255, 255, .18);
+}
+
+.help-grid {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+  align-items: start;
+}
+.faq-card .card-head { gap: 9px; }
+.faq-ico { display: inline-flex; color: var(--muted); }
+.faq-blurb { margin: 0 0 10px; font-size: 12.5px; color: var(--muted); line-height: 1.6; }
+
+details.faq { border-top: 1px solid var(--line); }
+details.faq summary {
+  list-style: none; cursor: pointer;
+  padding: 10px 22px 10px 0; position: relative;
+  font-size: 13px; line-height: 1.5;
+}
+details.faq summary::-webkit-details-marker { display: none; }
+details.faq summary::after {
+  content: ''; position: absolute; right: 6px; top: 16px;
+  width: 7px; height: 7px;
+  border-right: 1.5px solid var(--faint); border-bottom: 1.5px solid var(--faint);
+  transform: rotate(45deg); transition: transform .15s ease;
+}
+details.faq[open] summary::after { transform: rotate(-135deg); top: 19px; }
+details.faq summary:hover { color: var(--black); }
+details.faq p {
+  margin: 0 0 12px; padding-right: 18px;
+  font-size: 12.5px; line-height: 1.7; color: var(--ink-2);
+}
+
+#btn-help {
+  width: 30px; height: 30px; padding: 0;
+  border-radius: 50%; border: 1px solid var(--line-strong);
+  font-size: 14px; font-weight: 600; color: var(--muted);
+  flex: 0 0 auto; margin-left: 8px;
+}
+#btn-help:hover { background: var(--black); color: var(--white); border-color: var(--black); }
+
+/* ==========================================================================
+   Project triage and deadline alerts
+   ========================================================================== */
+.work-tabs {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  gap: 0; margin-bottom: 14px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius-lg);
+  overflow: hidden; background: var(--white);
+}
+.work-tabs button {
+  border: 0; border-right: 1px solid var(--line);
+  background: var(--white); cursor: pointer; text-align: left;
+  padding: 12px 16px;
+  display: flex; flex-direction: column; gap: 1px;
+  transition: background .12s ease;
+}
+.work-tabs button:last-child { border-right: 0; }
+.work-tabs button:hover { background: var(--wash); }
+.work-tabs button.active { background: var(--black); }
+.wt-count { font-size: 21px; font-weight: 600; line-height: 1.15; color: var(--ink); }
+.wt-label { font-size: 12.5px; color: var(--ink-2); }
+.wt-hint { font-size: 10.5px; color: var(--faint); }
+.work-tabs button.active .wt-count { color: var(--white); }
+.work-tabs button.active .wt-label { color: var(--white); }
+.work-tabs button.active .wt-hint { color: rgba(255, 255, 255, .5); }
+
+.deadline-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.deadline-chip {
+  display: inline-flex; align-items: baseline; gap: 7px;
+  max-width: 290px;
+  padding: 4px 10px; cursor: pointer;
+  border: 1px solid var(--line-strong); border-radius: 999px;
+  background: var(--white); color: var(--ink);
+  font-size: 11.5px; font-family: inherit;
+}
+.deadline-chip span {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.deadline-chip em { font-style: normal; color: var(--muted); flex: 0 0 auto; }
+.deadline-chip.late { border-color: #e8c3c3; }
+.deadline-chip.late em { color: var(--bad); }
+.deadline-chip:hover { border-color: var(--black); background: var(--wash); }
+
+/* ==========================================================================
+   Image uploads (logo, signature)
+   ========================================================================== */
+.image-drop {
+  border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 18px; min-height: 150px;
+  display: grid; place-items: center;
+  background: var(--wash);
+}
+.image-drop img { max-width: 180px; max-height: 120px; object-fit: contain; }
+/* A chequerboard, so a transparent signature reads as transparent. */
+.image-drop.checker {
+  background-color: #fff;
+  background-image:
+    linear-gradient(45deg, #ececec 25%, transparent 25%, transparent 75%, #ececec 75%),
+    linear-gradient(45deg, #ececec 25%, transparent 25%, transparent 75%, #ececec 75%);
+  background-size: 14px 14px;
+  background-position: 0 0, 7px 7px;
+}
+.sign-sample { max-height: 96px !important; }

@@ -32,6 +32,10 @@
       if (settings.company_logo === undefined) {
         settings.company_logo = (window.App.settings || {}).company_logo || '';
       }
+      if (settings.invoice_signature_image === undefined) {
+        settings.invoice_signature_image =
+          (window.App.settings || {}).invoice_signature_image || '';
+      }
 
       ctx.el.innerHTML =
         '<div class="tabs">' +
@@ -39,6 +43,7 @@
           tab('invoice', 'Invoice defaults') +
           tab('backups', 'Backups & data') +
           tab('database', 'Database') +
+          tab('help', 'Help & tutorial') +
           tab('about', 'About') +
         '</div><div id="set-body"></div>';
 
@@ -68,6 +73,7 @@
     if (state.tab === 'invoice') return invoiceTab(ctx);
     if (state.tab === 'backups') return backupsTab(ctx);
     if (state.tab === 'database') return databaseTab(ctx);
+    if (state.tab === 'help') return helpTab(ctx);
     if (state.tab === 'about') return aboutTab(ctx);
     return companyTab(ctx);
   }
@@ -116,6 +122,7 @@
   async function companyTab(ctx) {
     const host = document.getElementById('set-body');
     const logo = value('company_logo');
+    const sign = value('invoice_signature_image');
 
     host.innerHTML =
       '<div class="banner">' + icon('info', 17) +
@@ -177,8 +184,7 @@
 
         '<div class="col" style="gap:14px">' +
           card({ title: 'Logo', body:
-            '<div style="border:1px solid var(--line);border-radius:4px;padding:18px;' +
-              'display:grid;place-items:center;background:var(--wash);min-height:150px">' +
+            '<div class="image-drop">' +
               (logo
                 ? '<img src="' + esc(logo) + '" alt="Logo" ' +
                   'style="max-width:180px;max-height:120px;object-fit:contain">'
@@ -195,6 +201,26 @@
             '<p class="tiny faint mt8" style="line-height:1.6">PNG, JPG, SVG or WebP, under ' +
             '1 MB. A square mark around 600&times;600 prints crisply. It is stored inside ' +
             'the database, so it travels with your backups.</p>' }) +
+
+          card({ title: 'Signature', body:
+            '<div class="image-drop' + (sign ? ' checker' : '') + '">' +
+              (sign
+                ? '<img src="' + esc(sign) + '" alt="Signature" class="sign-sample">'
+                : '<div class="center faint small">' + icon('edit', 26) +
+                  '<div style="margin-top:8px">No signature yet</div></div>') +
+            '</div>' +
+            '<div class="btn-row mt14">' +
+              '<button class="btn secondary" data-action="pickSignature">' +
+              icon('upload', 14) + (sign ? 'Replace' : 'Upload signature') + '</button>' +
+              (sign
+                ? '<button class="btn ghost" data-action="clearSignature">Remove</button>'
+                : '') +
+            '</div>' +
+            '<p class="tiny faint mt8" style="line-height:1.6">Prints on the signature ' +
+            'line above <em>Authorised Signatory</em> on every invoice. Use a ' +
+            '<strong>transparent PNG</strong> — sign on white paper, scan or photograph ' +
+            'it, remove the background, and it will sit on the line instead of in a ' +
+            'white box. Under 512 KB; about 600&times;200 is ideal.</p>' }) +
 
           card({ title: 'Currency', body:
             '<div class="field"><label>Symbol</label>' +
@@ -223,6 +249,35 @@
           toast('Logo updated', 'success', result.name + ' · ' + fmt.bytes(result.bytes));
           companyTab(ctx);
         });
+      },
+      pickSignature: async (ds, button) => {
+        await window.UI.busy(button, async () => {
+          const result = await apiSafe('settings:pickSignature');
+          if (!result || result.canceled) return;
+          settings.invoice_signature_image = result.image;
+          window.App.settings = Object.assign({}, window.App.settings,
+            { invoice_signature_image: result.image });
+          toast('Signature saved', 'success',
+            result.transparent
+              ? 'It will print on the signature line of every invoice.'
+              : 'A JPG carries its background — a transparent PNG looks cleaner.');
+          companyTab(ctx);
+        });
+      },
+      clearSignature: async () => {
+        const ok = await confirm({
+          title: 'Remove signature',
+          message: 'Remove the signature image from your invoices?',
+          detail: 'The signature line and your name still print; only the image goes.',
+          confirmLabel: 'Remove'
+        });
+        if (!ok) return;
+        await apiSafe('settings:clearSignature');
+        settings.invoice_signature_image = '';
+        window.App.settings = Object.assign({}, window.App.settings,
+          { invoice_signature_image: '' });
+        toast('Signature removed', 'success');
+        companyTab(ctx);
       },
       clearLogo: async () => {
         const ok = await confirm({
@@ -669,6 +724,97 @@
         });
       }
     });
+  }
+
+  // =========================================================================
+  // Help & tutorial
+  //
+  // Every topic carries a written answer and a guided run-through of the real
+  // screen. Somebody who gets stuck on one part of the software can re-run
+  // just that part without sitting through the rest.
+  // =========================================================================
+
+  async function helpTab(ctx) {
+    const host = document.getElementById('set-body');
+    const topics = (window.Guide && window.Guide.TOPICS) || [];
+
+    host.innerHTML =
+      '<div class="help-hero">' +
+        '<div>' +
+          '<h2>How ' + esc(productName()) + ' works</h2>' +
+          '<p>A guided run-through of each part of the software, on your own ' +
+            'screens with your own data. Take the whole thing once, then come ' +
+            'back for whichever part you need again.</p>' +
+          '<div class="btn-row">' +
+            '<button class="btn" data-action="tourAll">' + icon('play', 15) +
+              'Take the full run-through</button>' +
+            '<span class="tiny faint">' + totalSteps(topics) +
+              ' steps &middot; about four minutes</span>' +
+          '</div>' +
+        '</div>' +
+        '<div class="help-hero-mark">' + icon('help', 40) + '</div>' +
+      '</div>' +
+
+      '<div class="field mt14" style="max-width:380px">' +
+        '<div class="search-box">' + icon('search', 14) +
+        '<input type="text" id="faq-search" placeholder="Search the questions" ' +
+        'spellcheck="false"></div>' +
+      '</div>' +
+
+      '<div class="help-grid mt14" id="faq-grid">' +
+        topics.map(topicCard).join('') +
+      '</div>' +
+
+      '<p class="tiny faint mt22" style="line-height:1.7">' +
+        'Still stuck? The full written manual is <code class="inline">README.md</code> ' +
+        'in the installation folder, and Settings &rarr; About shows where ' +
+        'everything on this computer lives.</p>';
+
+    bindActions(host, {
+      tourAll: () => window.Guide.run('all'),
+      tour: (ds) => window.Guide.run(ds.topic)
+    });
+
+    // Typing filters the questions, and hides a topic that holds none.
+    const search = document.getElementById('faq-search');
+    search.addEventListener('input', () => {
+      const term = search.value.trim().toLowerCase();
+      host.querySelectorAll('[data-faq-card]').forEach((cardEl) => {
+        let visible = 0;
+        cardEl.querySelectorAll('details').forEach((item) => {
+          const hit = !term || item.textContent.toLowerCase().includes(term);
+          item.hidden = !hit;
+          item.open = Boolean(term) && hit;
+          if (hit) visible += 1;
+        });
+        const topicHit = !term ||
+          cardEl.getAttribute('data-label').toLowerCase().includes(term);
+        cardEl.hidden = !(visible > 0 || topicHit);
+      });
+    });
+  }
+
+  function totalSteps(topics) {
+    return topics.reduce((sum, topic) => sum + topic.steps.length, 0);
+  }
+
+  function topicCard(topic) {
+    return '<section class="card faq-card" data-faq-card data-label="' +
+      esc(topic.label) + '">' +
+      '<div class="card-head">' +
+        '<span class="faq-ico">' + icon(topic.icon, 16) + '</span>' +
+        '<h2>' + esc(topic.label) + '</h2>' +
+        '<span class="spacer"></span>' +
+        '<button class="btn sm secondary" data-action="tour" data-topic="' +
+          esc(topic.id) + '">' + icon('play', 13) + 'Run through</button>' +
+      '</div>' +
+      '<div class="card-body">' +
+        '<p class="faq-blurb">' + esc(topic.blurb) + '</p>' +
+        topic.faq.map((item) =>
+          '<details class="faq"><summary>' + esc(item.q) + '</summary>' +
+          '<p>' + esc(item.a) + '</p></details>').join('') +
+      '</div>' +
+    '</section>';
   }
 
   // =========================================================================

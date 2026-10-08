@@ -5,6 +5,11 @@
   <meta http-equiv="Content-Security-Policy"
         content="default-src 'none'; style-src 'unsafe-inline'; img-src data:;">
   <title>DashBill</title>
+  <!--
+    The moment before the window exists. Scripting is switched off in this
+    window, so everything here is CSS; it is styled as a small sibling of the
+    in-app welcome screen so that one hands over to the other without a jolt.
+  -->
   <style>
     html, body {
       margin: 0; padding: 0; width: 100%; height: 100%;
@@ -15,18 +20,27 @@
     .card {
       width: 100%; height: 100%;
       background: #0a0a0a; color: #fff;
-      border-radius: 10px;
+      border-radius: 12px;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center;
-      gap: 18px;
+      gap: 20px;
       position: relative; overflow: hidden;
-      animation: in .25s ease-out;
+      animation: in .3s ease-out;
     }
-    @keyframes in { from { opacity: 0; transform: scale(.98); } to { opacity: 1; } }
+    @keyframes in { from { opacity: 0; transform: scale(.985); } to { opacity: 1; } }
+
+    /* A slow sheen across the panel, so it reads as alive rather than frozen. */
+    .card::before {
+      content: ''; position: absolute; inset: -40%;
+      background: radial-gradient(circle at 50% 42%,
+        rgba(255,255,255,.07) 0%, rgba(255,255,255,0) 62%);
+      animation: breathe 3.6s ease-in-out infinite;
+    }
+    @keyframes breathe { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
 
     .mark {
-      width: 66px; height: 66px;
-      border: 2px solid #fff; border-radius: 14px;
+      width: 62px; height: 62px;
+      border: 1.5px solid rgba(255,255,255,.5); border-radius: 15px;
       display: grid; place-items: center;
       position: relative;
     }
@@ -34,53 +48,60 @@
     .bars { display: flex; align-items: flex-end; gap: 4px; height: 26px; }
     .bars i {
       display: block; width: 6px; background: #fff; border-radius: 1px;
-      animation: grow 1.4s ease-in-out infinite;
+      animation: grow 1.5s ease-in-out infinite;
     }
     .bars i:nth-child(1) { height: 10px; animation-delay: 0s; }
     .bars i:nth-child(2) { height: 18px; animation-delay: .18s; }
     .bars i:nth-child(3) { height: 26px; animation-delay: .36s; }
     @keyframes grow {
-      0%, 100% { transform: scaleY(.55); transform-origin: bottom; }
-      50%      { transform: scaleY(1);   transform-origin: bottom; }
+      0%, 100% { transform: scaleY(.5); transform-origin: bottom; }
+      50%      { transform: scaleY(1);  transform-origin: bottom; }
     }
 
     .name {
-      font-size: 25px; font-weight: 600; letter-spacing: -.01em; line-height: 1;
+      position: relative;
+      font-size: 27px; font-weight: 600; letter-spacing: -.015em; line-height: 1;
     }
-    .name span { font-weight: 300; }
+    .name span { font-weight: 200; }
     .tag {
-      font-size: 9.5px; letter-spacing: .26em; text-transform: uppercase;
-      color: #8a8a8a;
+      position: relative;
+      font-size: 9px; letter-spacing: .3em; text-transform: uppercase;
+      color: rgba(255,255,255,.42);
     }
 
+    /* The bar sweeps, rather than filling: nothing here knows how long the
+       database will take, and a bar that pretends to would be a lie. */
     .progress {
-      position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
-      background: #1e1e1e; overflow: hidden;
+      position: absolute; left: 34px; right: 34px; bottom: 44px;
+      height: 2px; border-radius: 2px;
+      background: rgba(255,255,255,.13); overflow: hidden;
     }
     .progress i {
-      display: block; height: 100%; width: 38%; background: #fff;
-      animation: slide 1.25s ease-in-out infinite;
+      display: block; height: 100%; width: 34%; border-radius: 2px;
+      background: linear-gradient(90deg,
+        rgba(255,255,255,.15), #fff 50%, rgba(255,255,255,.15));
+      animation: sweep 1.45s cubic-bezier(.65, 0, .35, 1) infinite;
     }
-    @keyframes slide {
-      0%   { transform: translateX(-100%); }
-      100% { transform: translateX(305%); }
+    @keyframes sweep {
+      0%   { transform: translateX(-110%); }
+      100% { transform: translateX(400%); }
     }
 
     .foot {
-      position: absolute; bottom: 14px; left: 0; right: 0;
-      text-align: center; font-size: 10px; color: #5e5e5e;
+      position: absolute; bottom: 20px; left: 0; right: 0;
+      text-align: center;
+      font-size: 9px; letter-spacing: .2em; text-transform: uppercase;
+      color: rgba(255,255,255,.3);
     }
   </style>
 </head>
 <body>
   <div class="card">
     <div class="mark"><div class="bars"><i></i><i></i><i></i></div></div>
-    <div>
-      <div class="name">Dash<span>Bill</span></div>
-    </div>
+    <div class="name">Dash<span>Bill</span></div>
     <div class="tag">Budget &middot; Projects &middot; Invoicing</div>
-    <div class="foot">Starting up&hellip;</div>
     <div class="progress"><i></i></div>
+    <div class="foot">Starting up</div>
   </div>
 </body>
 </html>

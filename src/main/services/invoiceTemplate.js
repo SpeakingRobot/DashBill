@@ -135,6 +135,10 @@ function renderInvoiceHtml(data) {
 
   const hasBank = Boolean(bankOverride) || bankRows.length > 0;
 
+  // The stored signature, if the user uploaded one. A data URL, so it needs no
+  // network access and survives being e-mailed as a standalone PDF.
+  const signatureImage = String(s.invoice_signature_image || '').trim();
+
   // Which line-item columns this invoice prints.
   const columns = normaliseColumns(inv.column_config);
   const customColumns = columns.custom;
@@ -347,7 +351,21 @@ function renderInvoiceHtml(data) {
   }
   .sign-note { font-size: 8pt; color: var(--faint); max-width: 95mm; }
   .sign-box { text-align: center; min-width: 52mm; }
-  .sign-line { border-top: .8pt solid var(--ink); margin-bottom: 1.5mm; height: 14mm; }
+  /*
+   * The signature sits ON the rule, the way a pen would. The space is kept
+   * at a fixed height whether or not an image is stored, so an invoice signed
+   * by hand after printing has exactly as much room as a signed one.
+   */
+  .sign-space {
+    height: 16mm;
+    border-bottom: .8pt solid var(--ink);
+    margin-bottom: 1.5mm;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .sign-img { max-height: 15mm; max-width: 50mm; object-fit: contain; display: block; }
   .sign-for { font-size: 9pt; font-weight: 600; }
   .sign-cap { font-size: 7pt; letter-spacing: .12em; text-transform: uppercase; color: var(--faint); }
 
@@ -515,7 +533,8 @@ function renderInvoiceHtml(data) {
     ? '<br>This is not a GST invoice. No tax has been charged on this bill.' : ''}
     </div>
     <div class="sign-box">
-      <div class="sign-line"></div>
+      <div class="sign-space">${signatureImage
+    ? `<img class="sign-img" src="${esc(signatureImage)}" alt="Signature">` : ''}</div>
       <div class="sign-for">${esc(s.invoice_signature_label || `For ${s.company_name || ''}`)}</div>
       <div class="sign-cap">Authorised Signatory</div>
     </div>

@@ -40,8 +40,8 @@ let quitting = false;
  */
 function createSplash() {
   splashWindow = new BrowserWindow({
-    width: 380,
-    height: 240,
+    width: 420,
+    height: 268,
     frame: false,
     transparent: true,
     resizable: false,

@@ -135,7 +135,7 @@
         '<div><strong>This page could not load.</strong><br>' + esc(err.message) + '</div></div>';
       console.error(err);
     }
-    refreshCounts();
+    App.countsPromise = refreshCounts();
   }
 
   async function refreshCounts() {
@@ -403,6 +403,7 @@
       await afterConnect();
       toast('You can add your business details any time', 'info',
         'Settings → Company profile');
+      await offerTour();
     });
 
     nameEl.addEventListener('keydown', (event) => {
@@ -435,6 +436,159 @@
     hideGate();
     await afterConnect();
     toast('All set up', 'success', 'Your business details are on every invoice now.');
+    await offerTour();
+  }
+
+  // =========================================================================
+  // Welcome screen
+  //
+  // The first thing anybody sees. It is not decoration for its own sake: the
+  // bar tracks the real start-up work — reaching the database, reading the
+  // profile, drawing the dashboard — so the wait is accounted for rather than
+  // merely hidden, and by the time it clears the application behind it is
+  // genuinely ready. Clicking anywhere skips it.
+  // =========================================================================
+
+  /**
+   * One line a day. Written for this software rather than quoted from
+   * anywhere, so nothing here is misattributed to somebody who never said it.
+   */
+  const LINES = [
+    'Good work, billed on time, is the whole business.',
+    'Every invoice you send is a promise you have already kept.',
+    'Keep the books, and the books will keep you.',
+    'The money you remember to ask for is the money you earn.',
+    'A deadline met quietly beats an apology well phrased.',
+    'Price the craft, not the hours.',
+    'Small jobs, done properly, become large clients.',
+    'Finish, deliver, invoice. In that order, every time.',
+    'A clean ledger is a clear head.',
+    'The best time to record it is now; the second best is tonight.'
+  ];
+
+  const Welcome = (function () {
+    const MIN_VISIBLE = 1500;
+    let open = false;
+    let openedAt = 0;
+    let finished = false;
+
+    const el = (id) => document.getElementById(id);
+
+    function greeting() {
+      const hour = new Date().getHours();
+      if (hour < 12) return 'Good morning';
+      if (hour < 17) return 'Good afternoon';
+      return 'Good evening';
+    }
+
+    /** Stable for the whole day, different tomorrow. */
+    function lineOfTheDay() {
+      const start = new Date(new Date().getFullYear(), 0, 0);
+      const day = Math.floor((Date.now() - start.getTime()) / 86400000);
+      return LINES[day % LINES.length];
+    }
+
+    function show() {
+      if (open || finished) return;
+      open = true;
+      openedAt = Date.now();
+      const node = el('welcome');
+      node.classList.add('open');
+      node.setAttribute('aria-hidden', 'false');
+      el('welcome-greet').textContent = greeting();
+      el('welcome-quote').textContent = lineOfTheDay();
+      node.addEventListener('click', () => hide(true));
+      step(8, 'Starting up');
+    }
+
+    function step(percent, label) {
+      if (!open) return;
+      el('welcome-fill').style.width = Math.min(100, Math.max(0, percent)) + '%';
+      if (label) el('welcome-step').textContent = label;
+    }
+
+    /** Put the business on the card, once the profile has been read. */
+    function identify(settings) {
+      if (!open) return;
+      const product = String(settings.app_display_name || 'DashBill').trim() || 'DashBill';
+      const business = String(settings.company_name || '').trim();
+      const owner = String(settings.owner_name || '').trim();
+      const logo = String(settings.company_logo || '').trim();
+
+      el('welcome-name').textContent = owner || business || product;
+      if (logo) {
+        el('welcome-mark').innerHTML = '<img src="' + esc(logo) + '" alt="">';
+        el('welcome-mark').classList.add('has-logo');
+      }
+      const version = App.bootstrap && App.bootstrap.app
+        ? ' ' + App.bootstrap.app.version : '';
+      el('welcome-foot').textContent =
+        (owner && business ? business + '  ·  ' : '') + product + version;
+    }
+
+    /** One line about anything that needs attention today. */
+    function alerts(counts) {
+      if (!open) return;
+      const bits = [];
+      const lateProjects = Number((counts || {}).overdueProjects || 0);
+      const dueSoon = Number((counts || {}).dueSoonProjects || 0);
+      const lateInvoices = Number((counts || {}).overdueInvoices || 0);
+
+      if (lateProjects) {
+        bits.push(lateProjects + ' project' + (lateProjects === 1 ? '' : 's') +
+          ' past the deadline');
+      } else if (dueSoon) {
+        bits.push(dueSoon + ' deadline' + (dueSoon === 1 ? '' : 's') + ' this week');
+      }
+      if (lateInvoices) {
+        bits.push(lateInvoices + ' invoice' + (lateInvoices === 1 ? '' : 's') + ' overdue');
+      }
+      el('welcome-alerts').innerHTML = bits.length
+        ? '<span class="welcome-alert">' + icon('bell', 13) + esc(bits.join('  ·  ')) + '</span>'
+        : '';
+    }
+
+    /** Fade out, honouring a minimum dwell so it never merely flickers. */
+    function hide(immediate) {
+      if (!open || finished) { finished = true; return Promise.resolve(); }
+      finished = true;
+      const wait = immediate ? 0 : Math.max(0, MIN_VISIBLE - (Date.now() - openedAt));
+      step(100, 'Ready');
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          const node = el('welcome');
+          node.classList.add('leaving');
+          setTimeout(() => {
+            node.classList.remove('open', 'leaving');
+            node.setAttribute('aria-hidden', 'true');
+            open = false;
+            resolve();
+          }, 380);
+        }, wait);
+      });
+    }
+
+    /** The first-run wizard is about to take over; get out of the way. */
+    function abort() {
+      if (!open) { finished = true; return; }
+      hide(true);
+    }
+
+    return { show, step, identify, alerts, hide, abort };
+  })();
+  App.welcome = Welcome;
+
+  /** Offer the tutorial to somebody who has just finished setting up. */
+  async function offerTour() {
+    const take = await window.UI.confirm({
+      title: 'Show you around?',
+      message: 'Would you like a quick run-through of the software?',
+      detail: 'About four minutes, on your own screens. You can stop at any point, ' +
+        'and it is always available again under Settings → Help & tutorial.',
+      confirmLabel: 'Show me around',
+      cancelLabel: 'Not now'
+    });
+    if (take && window.Guide) window.Guide.run('all');
   }
 
   // =========================================================================
@@ -504,6 +658,7 @@
 
   async function afterConnect() {
     App.ready = true;
+    Welcome.step(34, 'Opening your books');
     const boot = await apiSafe('app:bootstrap');
     App.bootstrap = boot;
     if (boot) {
@@ -512,9 +667,33 @@
         '<strong>' + esc(boot.database.database) + '</strong> on ' + esc(where));
       setBackupStatus(boot.backup);
     }
+
+    Welcome.step(58, 'Reading your profile');
     await loadSettings();
+    Welcome.identify(App.settings);
+
     renderNav();
+    Welcome.step(76, 'Preparing your dashboard');
     await go('dashboard');
+
+    // go() kicks off the counts without waiting for them; the welcome screen
+    // reports those figures, so here is the one place that does wait.
+    await App.countsPromise;
+    Welcome.alerts(App.counts);
+    Welcome.step(96, 'Almost there');
+    await Welcome.hide();
+  }
+
+  /** The "?" in the top bar runs through whichever page you are looking at. */
+  function wireHelpButton() {
+    const button = document.getElementById('btn-help');
+    if (!button) return;
+    button.addEventListener('click', () => {
+      if (!window.Guide) return;
+      if (window.Guide.running()) { window.Guide.stop(); return; }
+      const topic = window.Guide.topicForPage(App.current || 'dashboard');
+      window.Guide.run(topic.id);
+    });
   }
 
   let booted = false;
@@ -524,6 +703,8 @@
 
     wireGate();
     renderNav();
+    wireHelpButton();
+    Welcome.show();
 
     const info = await apiSafe('app:bootstrap');
     App.bootstrap = info;
@@ -534,6 +715,9 @@
       return;
     }
 
+    // Setting up, or something is wrong: the welcome screen has nothing to
+    // welcome anyone to yet, so it steps aside for the wizard.
+    Welcome.abort();
     setDbStatus(false, 'Not connected');
 
     // A machine that has been set up before goes straight to the form it used,
@@ -554,6 +738,7 @@
       if (!App.ready) await afterConnect();
     } else {
       App.ready = false;
+      Welcome.abort();
       setDbStatus(false, 'Not connected');
       const info = App.bootstrap;
       if (info && info.configured && info.database && info.database.host) {

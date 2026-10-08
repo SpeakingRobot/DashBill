@@ -209,6 +209,7 @@ async function seedSettings(target) {
       '3. Please quote the invoice number with every payment.',
     invoice_footer_note: 'Thank you for your business.',
     invoice_signature_label: '',
+    invoice_signature_image: '',
     invoice_round_off: '1',
     owner_name: ''
   };

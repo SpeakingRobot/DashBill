@@ -214,6 +214,26 @@
 </div>
 
 <!-- ==================================================================== -->
+<!-- Welcome screen. Shown while the books are being opened.              -->
+<!-- ==================================================================== -->
+<div id="welcome" aria-hidden="true">
+  <div class="welcome-inner">
+    <div class="welcome-mark" id="welcome-mark">
+      <span class="welcome-bars"><i></i><i></i><i></i></span>
+    </div>
+    <div class="welcome-greet" id="welcome-greet">Welcome</div>
+    <h1 class="welcome-name" id="welcome-name">&nbsp;</h1>
+    <p class="welcome-quote" id="welcome-quote"></p>
+    <div class="welcome-alerts" id="welcome-alerts"></div>
+    <div class="welcome-progress">
+      <div class="welcome-track"><i id="welcome-fill"></i></div>
+      <div class="welcome-step" id="welcome-step">Starting up</div>
+    </div>
+  </div>
+  <div class="welcome-foot" id="welcome-foot"></div>
+</div>
+
+<!-- ==================================================================== -->
 <!-- Main application shell                                               -->
 <!-- ==================================================================== -->
 <div id="shell">
@@ -242,6 +262,8 @@
       </div>
       <span class="spacer"></span>
       <div id="topbar-actions"></div>
+      <button class="btn ghost icon" id="btn-help"
+              title="Run through this page">?</button>
     </header>
     <div id="view"></div>
   </main>
@@ -252,6 +274,7 @@
 
 <script src="lib/icons.js"></script>
 <script src="lib/ui.js"></script>
+<script src="lib/guide.js"></script>
 <script src="pages/dashboard.js"></script>
 <script src="pages/income.js"></script>
 <script src="pages/expenses.js"></script>

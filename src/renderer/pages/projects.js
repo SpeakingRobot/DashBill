@@ -24,11 +24,47 @@
     ['cancelled', 'Cancelled']
   ];
 
-  const state = { search: '', status: 'open', paymentStatus: '', clientId: '' };
+  /** Statuses that count as work still on your plate. */
+  const OPEN = ['planned', 'in_progress', 'submitted', 'on_hold'];
+
+  /**
+   * The quick triage across the top of the page.
+   *
+   * These are views of one list rather than four separate queries: every
+   * project is fetched once and bucketed here, so switching between them is
+   * instant and the counts are always consistent with each other. "Just
+   * started" is deliberately a subset of "Pending" — work you have taken on
+   * but not yet delivered.
+   */
+  const BUCKETS = [
+    { id: 'pending', label: 'Pending', hint: 'still on your plate',
+      test: (row) => OPEN.includes(row.status) },
+    { id: 'started', label: 'Just started', hint: 'taken on, not delivered',
+      test: (row) => row.status === 'planned' || row.status === 'in_progress' },
+    { id: 'completed', label: 'Completed', hint: 'work finished',
+      test: (row) => row.status === 'completed' },
+    { id: 'all', label: 'Everything', hint: 'including cancelled',
+      test: () => true }
+  ];
+
+  /** Anything due within this many days is called out before it is late. */
+  const WARN_DAYS = 7;
+
+  const state = { search: '', bucket: 'pending', paymentStatus: '', clientId: '' };
   let clients = [];
-  // The rows currently on screen. A status change patches the one that moved
-  // and redraws from here, instead of asking the database for the lot again.
+  // Every project matching the search/client/payment filters. The tabs slice
+  // this locally, so a status change patches one row and redraws with no
+  // round trip at all.
   let currentRows = [];
+  /*
+   * Rows whose status you have just changed from this screen.
+   *
+   * Marking a project completed takes it out of the Pending bucket, and a row
+   * that vanishes the instant you click it is disorienting — you lose the
+   * confirmation and the "Mark paid" button that has just appeared on it. So a
+   * row you have touched stays put until you move tab or reload.
+   */
+  const justChanged = new Set();
 
   window.Pages.projects = {
     title: 'Projects',
@@ -40,6 +76,7 @@
       bindActions(ctx.actions, { new: () => editor(ctx, null) });
 
       if (ctx.params.clientId) state.clientId = String(ctx.params.clientId);
+      if (ctx.params.bucket) state.bucket = String(ctx.params.bucket);
 
       // Independent of each other, so both are asked for at once.
       const [clientList, rows] = await Promise.all([
@@ -48,7 +85,10 @@
       ]);
       clients = clientList;
 
-      ctx.el.innerHTML = filters() + '<div id="proj-body">' + window.UI.loading(6) + '</div>';
+      ctx.el.innerHTML = filters() +
+        '<div id="proj-tabs-host"></div>' +
+        '<div id="proj-alert-host"></div>' +
+        '<div id="proj-body">' + window.UI.loading(6) + '</div>';
       wireFilters(ctx);
       renderProjects(ctx, rows);
 
@@ -61,12 +101,6 @@
 
   function filters() {
     return '<div class="filters">' +
-      '<div class="field"><label>Status</label><select id="p-status">' +
-        '<option value="open"' + (state.status === 'open' ? ' selected' : '') +
-        '>Open (not finished)</option>' +
-        '<option value=""' + (state.status === '' ? ' selected' : '') + '>Everything</option>' +
-        enumOptions(STATUSES, state.status) +
-        '</select></div>' +
       '<div class="field"><label>Payment</label><select id="p-payment">' +
         enumOptions([['unpaid', 'Unpaid'], ['partial', 'Part paid'], ['paid', 'Paid']],
           state.paymentStatus, 'Any') + '</select></div>' +
@@ -80,9 +114,6 @@
   }
 
   function wireFilters(ctx) {
-    document.getElementById('p-status').addEventListener('change', (event) => {
-      state.status = event.target.value; load(ctx);
-    });
     document.getElementById('p-payment').addEventListener('change', (event) => {
       state.paymentStatus = event.target.value; load(ctx);
     });
@@ -99,7 +130,6 @@
   function fetchProjects() {
     return api('projects:list', {
       search: state.search || undefined,
-      status: state.status || undefined,
       paymentStatus: state.paymentStatus || undefined,
       clientId: state.clientId || undefined
     });
@@ -108,23 +138,136 @@
   async function load(ctx) {
     const host = document.getElementById('proj-body');
     host.innerHTML = window.UI.loading(6);
+    justChanged.clear();
     renderProjects(ctx, await fetchProjects());
+  }
+
+  // =========================================================================
+  // Deadlines
+  // =========================================================================
+
+  function daysUntil(dateStr) {
+    const target = window.UI.parseDate(dateStr);
+    if (!target) return 0;
+    const now = window.UI.parseDate(today());
+    return Math.round((target.getTime() - now.getTime()) / 86400000);
+  }
+
+  function isOpen(row) { return OPEN.includes(row.status); }
+
+  /** Open projects with a deadline that has passed or is about to. */
+  function atRisk(rows) {
+    return rows
+      .filter((row) => isOpen(row) && row.due_date)
+      .map((row) => Object.assign({ days: daysUntil(row.due_date) }, row))
+      .filter((row) => row.days <= WARN_DAYS)
+      .sort((a, b) => a.days - b.days);
+  }
+
+  /** The chip under a deadline date: how much time is left, or how late it is. */
+  function deadlineChip(row) {
+    if (!row.due_date || !isOpen(row)) return '';
+    const days = daysUntil(row.due_date);
+    if (days < 0) return badge(fmt.due(days), 'bad');
+    if (days === 0) return badge('due today', 'bad');
+    if (days <= WARN_DAYS) return badge(fmt.due(days), 'warn');
+    return '<span class="row-sub">' + esc(fmt.due(days)) + '</span>';
+  }
+
+  /**
+   * The alert strip. It appears only when something actually needs attention,
+   * so an empty week leaves the page clean.
+   */
+  function deadlineAlert(ctx, rows) {
+    const host = document.getElementById('proj-alert-host');
+    if (!host) return;
+    const risky = atRisk(rows);
+    if (!risky.length) { host.innerHTML = ''; return; }
+
+    const late = risky.filter((row) => row.days < 0);
+    const soon = risky.filter((row) => row.days >= 0);
+
+    host.innerHTML =
+      '<div class="banner ' + (late.length ? 'bad' : 'warn') + '" id="proj-alert">' +
+        icon(late.length ? 'alert' : 'bell', 17) +
+        '<div>' +
+          '<strong>' +
+            (late.length
+              ? late.length + ' project' + (late.length === 1 ? '' : 's') + ' past the deadline'
+              : soon.length + ' deadline' + (soon.length === 1 ? '' : 's') + ' this week') +
+          '</strong>' +
+          (late.length && soon.length
+            ? ' &mdash; and ' + soon.length + ' more due within ' + WARN_DAYS + ' days'
+            : '') +
+          '<div class="deadline-chips">' +
+            risky.slice(0, 5).map((row) =>
+              '<button class="deadline-chip' + (row.days < 0 ? ' late' : '') +
+              '" data-action="openDue" data-id="' + row.id + '">' +
+              '<span>' + esc(row.title) + '</span>' +
+              '<em>' + esc(fmt.due(row.days)) + '</em></button>').join('') +
+            (risky.length > 5
+              ? '<span class="tiny faint">and ' + (risky.length - 5) + ' more</span>' : '') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    bindActions(host, { openDue: (ds) => detail(ctx, Number(ds.id)) });
+  }
+
+  /** The three-way triage, with a live count on each tab. */
+  function renderTabs(ctx, rows) {
+    const host = document.getElementById('proj-tabs-host');
+    if (!host) return;
+    host.innerHTML = '<div class="work-tabs" id="proj-tabs">' +
+      BUCKETS.map((bucket) => {
+        const count = rows.filter(bucket.test).length;
+        return '<button data-action="bucket" data-bucket="' + bucket.id + '"' +
+          (state.bucket === bucket.id ? ' class="active"' : '') + '>' +
+          '<span class="wt-count">' + fmt.number(count) + '</span>' +
+          '<span class="wt-label">' + esc(bucket.label) + '</span>' +
+          '<span class="wt-hint">' + esc(bucket.hint) + '</span>' +
+          '</button>';
+      }).join('') + '</div>';
+
+    bindActions(host, {
+      bucket: (ds) => {
+        if (state.bucket === ds.bucket) return;
+        state.bucket = ds.bucket;
+        justChanged.clear();
+        // Purely a different slice of what is already here: no round trip.
+        renderProjects(ctx, currentRows);
+      }
+    });
+  }
+
+  function currentBucket() {
+    const found = BUCKETS.filter((bucket) => bucket.id === state.bucket);
+    return found.length ? found[0] : BUCKETS[0];
   }
 
   function renderProjects(ctx, rows) {
     currentRows = rows;
+    renderTabs(ctx, rows);
+    deadlineAlert(ctx, rows);
+
+    const bucket = currentBucket();
+    const visible = rows.filter((row) =>
+      bucket.test(row) || justChanged.has(Number(row.id)));
     const host = document.getElementById('proj-body');
 
-    const value = rows.reduce((sum, row) => sum + num(row.amount), 0);
-    const received = rows.reduce((sum, row) => sum + num(row.amount_paid), 0);
+    const value = visible.reduce((sum, row) => sum + num(row.amount), 0);
+    const received = visible.reduce((sum, row) => sum + num(row.amount_paid), 0);
     const pending = value - received;
-    const awaiting = rows.filter((row) =>
+    const awaiting = visible.filter((row) =>
       row.status === 'completed' && row.payment_status !== 'paid').length;
+    const late = atRisk(visible).filter((row) => row.days < 0).length;
 
     host.innerHTML =
       '<div class="grid c4 mb14">' +
-        stat({ label: 'Projects shown', value: fmt.number(rows.length), accent: true,
-          sub: '<span class="faint">' + fmt.money(value) + ' of work</span>' }) +
+        // The tab above already carries the count, so this one leads with money.
+        stat({ label: 'Value of this view', value: fmt.moneyShort(value), accent: true,
+          sub: '<span class="faint">' + fmt.number(visible.length) + ' project' +
+            (visible.length === 1 ? '' : 's') + '</span>' }) +
         stat({ label: 'Received', value: fmt.moneyShort(received), small: true,
           sub: '<span class="faint">' +
             (value ? fmt.percent((received / value) * 100, 0) + ' collected' : '—') +
@@ -132,12 +275,17 @@
         stat({ label: 'Still to collect', value: fmt.moneyShort(pending), small: true,
           sub: pending > 0 ? '<span class="delta down">outstanding</span>'
             : '<span class="faint">nothing pending</span>' }) +
-        stat({ label: 'Done, awaiting payment', value: fmt.number(awaiting), small: true,
-          sub: '<span class="faint">ready to chase</span>' }) +
+        (bucket.id === 'completed'
+          ? stat({ label: 'Awaiting payment', value: fmt.number(awaiting), small: true,
+            sub: '<span class="faint">ready to chase</span>' })
+          : stat({ label: 'Past deadline', value: fmt.number(late), small: true,
+            sub: late
+              ? '<span class="delta down">needs attention</span>'
+              : '<span class="faint">all on time</span>' })) +
       '</div>' +
 
       card({
-        title: 'Projects',
+        title: bucket.label + ' projects',
         hint: 'Click a row for the full record',
         flush: true,
         body: table([
@@ -150,13 +298,8 @@
           { label: 'Status', render: (row) => statusBadge(PROJECT_STATUS, row.status) },
           { label: 'Deadline', render: (row) => {
             if (!row.due_date) return '<span class="faint">—</span>';
-            const days = daysUntil(row.due_date);
-            const open = ['planned', 'in_progress', 'submitted', 'on_hold'].includes(row.status);
             return fmt.dateShort(row.due_date) +
-              (open
-                ? '<div class="row-sub' + (days < 0 ? ' neg' : '') + '">' +
-                  esc(fmt.due(days)) + '</div>'
-                : '');
+              '<div class="row-sub">' + deadlineChip(row) + '</div>';
           } },
           { label: 'Value', className: 'num', render: (row) => fmt.money(row.amount) },
           { label: 'Paid', className: 'num', render: (row) =>
@@ -172,27 +315,17 @@
               : '<span class="faint">not yet</span>' },
           { label: '', className: 'actions', render: (row) => rowActions(row) }
         ], {
-          rows,
+          rows: visible,
           onRowClick: true,
-          footer: rows.length
+          footer: visible.length
             ? '<tr><td colspan="3">Totals</td><td class="num">' + fmt.money(value) +
               '</td><td class="num">' + fmt.money(received) + '</td><td colspan="3"></td></tr>'
             : '',
-          empty: {
-            icon: 'projects',
-            title: hasFilters() ? 'No project matches these filters' : 'No projects yet',
-            message: hasFilters()
-              ? 'Try "Everything" under Status, or clear the search.'
-              : 'Add a project for every job you take on, with the agreed amount. ' +
-                'Update its status as the work moves along; when it is done and the ' +
-                'client has paid, mark it paid and the income is recorded for you.',
-            action: hasFilters() ? '' : 'new',
-            actionLabel: 'Add your first project'
-          }
+          empty: emptyFor(bucket, rows)
         })
       });
 
-    bindRows(host, rows, (row) => detail(ctx, row.id));
+    bindRows(host, visible, (row) => detail(ctx, row.id));
     bindActions(host, {
       new: () => editor(ctx, null),
       edit: (ds) => editor(ctx, Number(ds.id)),
@@ -201,6 +334,31 @@
       markPaid: (ds) => markPaid(ctx, ds),
       bill: (ds) => ctx.go('invoices', { action: 'new', projectId: Number(ds.id) })
     });
+  }
+
+  /** What to say when a tab has nothing in it — which is often good news. */
+  function emptyFor(bucket, rows) {
+    if (hasFilters()) {
+      return { icon: 'projects', title: 'No project matches these filters',
+        message: 'Clear the search, or try the Everything tab.' };
+    }
+    if (!rows.length) {
+      return { icon: 'projects', title: 'No projects yet',
+        message: 'Add a project for every job you take on, with the agreed amount. ' +
+          'Update its status as the work moves along; when it is done and the ' +
+          'client has paid, mark it paid and the income is recorded for you.',
+        action: 'new', actionLabel: 'Add your first project' };
+    }
+    const messages = {
+      pending: ['Nothing pending', 'Every job is either finished or cancelled. ' +
+        'Enjoy it while it lasts.'],
+      started: ['Nothing in hand', 'No job is currently planned or in progress. ' +
+        'Anything already delivered is under Completed.'],
+      completed: ['Nothing finished yet', 'Projects appear here once you mark them ' +
+        'completed. Until then they sit under Pending.']
+    };
+    const entry = messages[bucket.id] || ['Nothing here', ''];
+    return { icon: 'check', title: entry[0], message: entry[1] };
   }
 
   /** The one button that makes sense next for this project. */
@@ -232,14 +390,7 @@
   }
 
   function hasFilters() {
-    return Boolean(state.search || state.paymentStatus || state.clientId) || state.status !== '';
-  }
-
-  function daysUntil(dateStr) {
-    const target = window.UI.parseDate(dateStr);
-    if (!target) return 0;
-    const now = window.UI.parseDate(today());
-    return Math.round((target.getTime() - now.getTime()) / 86400000);
+    return Boolean(state.search || state.paymentStatus || state.clientId);
   }
 
   // =========================================================================
@@ -252,6 +403,7 @@
    */
   function applyRow(ctx, row) {
     if (!row) { load(ctx); return; }
+    justChanged.add(Number(row.id));
     const index = currentRows.findIndex((r) => Number(r.id) === Number(row.id));
     const rows = currentRows.slice();
     if (index >= 0) rows[index] = row;

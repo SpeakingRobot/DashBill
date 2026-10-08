@@ -43,6 +43,10 @@
     upload: '<path d="M12 21V9"/><path d="M7 13l5-5 5 5"/><path d="M4 3h16"/>',
     image: '<rect x="3" y="4" width="18" height="16" rx="1.5"/><circle cx="8.5" cy="9.5" r="1.8"/><path d="M4 18l5-5 3.5 3.5L16 13l4 5"/>',
     gst: '<path d="M4 6h16v12H4z"/><path d="M8 10h8"/><path d="M8 14h5"/>',
+    play: '<path d="M7 4.5l12 7.5-12 7.5z"/>',
+    help: '<circle cx="12" cy="12" r="9"/><path d="M9.3 9.3a2.8 2.8 0 015.4 1c0 1.9-2.7 2.3-2.7 4"/><path d="M12 17.5h.01"/>',
+    signature: '<path d="M3 17c3.5 0 4-11 7-11s2 9 4.5 9c1.6 0 2-2.5 3.5-2.5"/><path d="M3 21h18"/>',
+    bell: '<path d="M18 9a6 6 0 10-12 0c0 5-2 6-2 6h16s-2-1-2-6"/><path d="M10.5 20a2 2 0 003 0"/>',
     list: '<path d="M8 6h13"/><path d="M8 12h13"/><path d="M8 18h13"/><path d="M3.5 6h.01"/><path d="M3.5 12h.01"/><path d="M3.5 18h.01"/>'
   };
 

@@ -248,6 +248,29 @@
         '<button class="btn sm secondary" data-action="overdueInvoices">Chase them</button></div>';
     }
 
+    // Project deadlines. `dueProjects` only ever holds open work, so anything
+    // with a day count at or below zero is genuinely late.
+    const projects = data.dueProjects || [];
+    const lateProjects = projects.filter((row) => num(row.days_to_due) < 0);
+    const soonProjects = projects.filter((row) =>
+      num(row.days_to_due) >= 0 && num(row.days_to_due) <= 7);
+    if (lateProjects.length || soonProjects.length) {
+      const first = (lateProjects.length ? lateProjects : soonProjects)
+        .slice(0, 3).map((row) => row.title);
+      html += '<div class="banner ' + (lateProjects.length ? 'bad' : 'warn') + '">' +
+        icon(lateProjects.length ? 'alert' : 'bell', 17) +
+        '<div><strong>' +
+        (lateProjects.length
+          ? lateProjects.length + ' project' + (lateProjects.length === 1 ? ' is' : 's are') +
+            ' past the deadline'
+          : soonProjects.length + ' deadline' + (soonProjects.length === 1 ? '' : 's') +
+            ' this week') +
+        '</strong> — ' + esc(first.join(', ')) +
+        (first.length < (lateProjects.length || soonProjects.length) ? ' and more' : '') +
+        '.</div><span class="spacer"></span>' +
+        '<button class="btn sm secondary" data-action="goDeadlines">See them</button></div>';
+    }
+
     const dueRecurring = (data.dueRecurring || []).filter((row) => num(row.days_to_due) <= 0);
     if (dueRecurring.length) {
       html += '<div class="banner">' + icon('repeat', 17) +
@@ -337,6 +360,7 @@
       allInvoices: () => ctx.go('invoices'),
       overdueInvoices: () => ctx.go('invoices', { status: 'overdue' }),
       goRecurring: () => ctx.go('expenses', { tab: 'recurring' }),
+      goDeadlines: () => ctx.go('projects', { bucket: 'pending' }),
       openInvoice: (ds) => ctx.go('invoices', { action: 'open', id: Number(ds.id) }),
       openProject: (ds) => ctx.go('projects', { action: 'open', id: Number(ds.id) }),
       billProject: (ds) => ctx.go('invoices', { action: 'new', projectId: Number(ds.id) }),

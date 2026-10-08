@@ -24,10 +24,22 @@ const ALLOWED_KEYS = new Set([
   'currency_symbol', 'invoice_prefix', 'invoice_number_format', 'invoice_next_seq',
   'invoice_seq_padding', 'invoice_default_gst_mode', 'invoice_default_gst_rate',
   'invoice_default_due_days', 'invoice_default_terms', 'invoice_footer_note',
-  'invoice_signature_label', 'invoice_round_off', 'owner_name', 'last_pdf_folder'
+  'invoice_signature_label', 'invoice_signature_image',
+  'invoice_round_off', 'owner_name', 'last_pdf_folder'
 ]);
 
 const MAX_LOGO_BYTES = 1024 * 1024; // 1 MB, plenty for a print-quality mark
+const MAX_SIGNATURE_BYTES = 512 * 1024; // a signature is a small transparent PNG
+
+/**
+ * The two pictures stored inside the database as base64 data URLs. They are
+ * the only heavy rows in app_settings, and both change about once in the life
+ * of an install, so they are left out of an ordinary settings read.
+ */
+const IMAGE_KEYS = [
+  ['company_logo', 'has_logo'],
+  ['invoice_signature_image', 'has_signature']
+];
 
 module.exports = {
   /**
@@ -41,9 +53,12 @@ module.exports = {
    */
   'settings:get': async ({ withLogo } = {}) => {
     const settings = db.isReady() ? await readSettings(db) : {};
-    if (!withLogo && settings.company_logo !== undefined) {
-      settings.has_logo = settings.company_logo ? '1' : '';
-      delete settings.company_logo;
+    if (!withLogo) {
+      IMAGE_KEYS.forEach(([key, flag]) => {
+        if (settings[key] === undefined) return;
+        settings[flag] = settings[key] ? '1' : '';
+        delete settings[key];
+      });
     }
     return {
       settings,
@@ -108,49 +123,35 @@ module.exports = {
   },
 
   /**
-   * Pick a logo and store it inside the database as a data URL. Keeping it in
-   * the database (rather than as a file path) means a restored backup always
-   * still has the logo, even on a different machine.
+   * Pick a logo and store it inside the database as a data URL.
+   * Keeping it in the database (rather than as a file path) means a restored
+   * backup always still has the logo, even on a different machine.
    */
-  'settings:pickLogo': async () => {
-    const picked = await dialog.showOpenDialog({
-      title: 'Choose your logo',
-      filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'svg', 'webp'] }],
-      properties: ['openFile']
-    });
-    if (picked.canceled || !picked.filePaths.length) return { canceled: true };
+  'settings:pickLogo': async () => pickImage({
+    key: 'company_logo',
+    title: 'Choose your logo',
+    limit: MAX_LOGO_BYTES,
+    advice: 'a 600 x 600 PNG is more than enough for a printed invoice'
+  }),
 
-    const filePath = picked.filePaths[0];
-    const { size } = fs.statSync(filePath);
-    if (size > MAX_LOGO_BYTES) {
-      throw new Error(
-        `That image is ${(size / 1024 / 1024).toFixed(1)} MB. Please use one under 1 MB — ` +
-        'a 600 x 600 PNG is more than enough for a printed invoice.'
-      );
-    }
+  'settings:clearLogo': async () => clearImage('company_logo'),
 
-    const extension = path.extname(filePath).toLowerCase();
-    const mime = {
-      '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
-      '.svg': 'image/svg+xml', '.webp': 'image/webp'
-    }[extension];
-    if (!mime) throw new Error('Use a PNG, JPG, SVG or WebP image.');
+  /**
+   * Pick the signature that prints above "Authorised Signatory".
+   *
+   * A transparent PNG is what this is for: scanned or drawn, background
+   * removed, so it sits on the invoice's signature rule rather than in a white
+   * box. JPG works but brings its background with it, which is why the
+   * Settings screen says so.
+   */
+  'settings:pickSignature': async () => pickImage({
+    key: 'invoice_signature_image',
+    title: 'Choose your signature image',
+    limit: MAX_SIGNATURE_BYTES,
+    advice: 'a transparent PNG about 600 x 200 is ideal'
+  }),
 
-    const dataUrl = `data:${mime};base64,${fs.readFileSync(filePath).toString('base64')}`;
-    await db.query(
-      `INSERT INTO app_settings (setting_key, setting_value) VALUES ('company_logo', ?)
-       ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
-      [dataUrl]
-    );
-    return { canceled: false, logo: dataUrl, bytes: size, name: path.basename(filePath) };
-  },
-
-  'settings:clearLogo': async () => {
-    await db.query(
-      "UPDATE app_settings SET setting_value = '' WHERE setting_key = 'company_logo'"
-    );
-    return { cleared: true };
-  },
+  'settings:clearSignature': async () => clearImage('invoice_signature_image'),
 
   // -- database connection -------------------------------------------------
   'settings:dbStatus': async () => {
@@ -236,6 +237,59 @@ module.exports = {
     return { ok: true, version: probe.version, config: config.publicConfig().db };
   }
 };
+
+const MIME_BY_EXTENSION = {
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+  '.svg': 'image/svg+xml', '.webp': 'image/webp'
+};
+
+/**
+ * Ask for an image file and store it in app_settings as a data URL.
+ * Shared by the logo and the signature, which differ only in size limit and
+ * wording.
+ */
+async function pickImage({ key, title, limit, advice }) {
+  const picked = await dialog.showOpenDialog({
+    title,
+    filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'svg', 'webp'] }],
+    properties: ['openFile']
+  });
+  if (picked.canceled || !picked.filePaths.length) return { canceled: true };
+
+  const filePath = picked.filePaths[0];
+  const { size } = fs.statSync(filePath);
+  if (size > limit) {
+    throw new Error(
+      `That image is ${(size / 1024 / 1024).toFixed(1)} MB. Please use one under ` +
+      `${Math.round(limit / 1024)} KB — ${advice}.`
+    );
+  }
+
+  const mime = MIME_BY_EXTENSION[path.extname(filePath).toLowerCase()];
+  if (!mime) throw new Error('Use a PNG, JPG, SVG or WebP image.');
+
+  const dataUrl = `data:${mime};base64,${fs.readFileSync(filePath).toString('base64')}`;
+  await db.query(
+    `INSERT INTO app_settings (setting_key, setting_value) VALUES (?, ?)
+     ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)`,
+    [key, dataUrl]
+  );
+  return {
+    canceled: false,
+    image: dataUrl,
+    logo: dataUrl,          // the name the logo caller has always used
+    transparent: mime === 'image/png' || mime === 'image/svg+xml' || mime === 'image/webp',
+    bytes: size,
+    name: path.basename(filePath)
+  };
+}
+
+async function clearImage(key) {
+  await db.query(
+    "UPDATE app_settings SET setting_value = '' WHERE setting_key = ?", [key]
+  );
+  return { cleared: true };
+}
 
 /** Build a complete db config from a partial form payload plus what is saved. */
 function mergeDbConfig(payload) {
