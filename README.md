@@ -7,7 +7,6 @@
 Brand it with your own business name and logo. Keeps its books in a database
 **you** own — your own free TiDB Cloud cluster, or MySQL on your own machine.
 
-### [⬇️ Download DashBill for Windows](https://github.com/SpeakingRobot/DashBill/releases/download/v1.7.0/DashBill-Setup-1.7.0.exe)
 
 `DashBill-Setup-1.7.0.exe` · 79 MB · Windows 10/11 64-bit
 
@@ -56,7 +55,6 @@ Brand it with your own business name and logo. Keeps its books in a database
 
 <!-- DOWNLOAD_LINK — bump the version in both links below on every release -->
 
-### ⬇️ [**Download DashBill-Setup-1.7.0.exe**](https://github.com/SpeakingRobot/DashBill/releases/download/v1.7.0/DashBill-Setup-1.7.0.exe) &nbsp;·&nbsp; 79 MB
 
 That link downloads the installer straight away — there is no page to navigate
 and nothing to sign in to. Every version is kept on this repository's
