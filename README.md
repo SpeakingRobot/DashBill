@@ -7,9 +7,9 @@
 Brand it with your own business name and logo. Keeps its books in a database
 **you** own — your own free TiDB Cloud cluster, or MySQL on your own machine.
 
-### [⬇️ Download DashBill for Windows](https://github.com/SpeakingRobot/DashBill/releases/download/v1.6.1/DashBill-Setup-1.6.1.exe)
+### [⬇️ Download DashBill for Windows](https://github.com/SpeakingRobot/DashBill/releases/download/v1.7.0/DashBill-Setup-1.7.0.exe)
 
-`DashBill-Setup-1.6.1.exe` · 79 MB · Windows 10/11 64-bit
+`DashBill-Setup-1.7.0.exe` · 79 MB · Windows 10/11 64-bit
 
 *Install it once; after that it updates itself.*
 
@@ -56,7 +56,7 @@ Brand it with your own business name and logo. Keeps its books in a database
 
 <!-- DOWNLOAD_LINK — bump the version in both links below on every release -->
 
-### ⬇️ [**Download DashBill-Setup-1.6.1.exe**](https://github.com/SpeakingRobot/DashBill/releases/download/v1.6.1/DashBill-Setup-1.6.1.exe) &nbsp;·&nbsp; 79 MB
+### ⬇️ [**Download DashBill-Setup-1.7.0.exe**](https://github.com/SpeakingRobot/DashBill/releases/download/v1.7.0/DashBill-Setup-1.7.0.exe) &nbsp;·&nbsp; 79 MB
 
 That link downloads the installer straight away — there is no page to navigate
 and nothing to sign in to. Every version is kept on this repository's
@@ -76,7 +76,7 @@ You can also build the installer yourself from this repository — see
 
 ### Install
 
-1. Double-click **`DashBill-Setup-1.6.1.exe`**.
+1. Double-click **`DashBill-Setup-1.7.0.exe`**.
 2. Windows will almost certainly show a blue box:
    **_"Windows protected your PC"_**. This is expected — see below.
 3. Choose where to install (the default is fine) and press **Install**.
@@ -489,7 +489,7 @@ npm run dist
 That produces:
 
 ```
-dist\DashBill-Setup-1.6.1.exe
+dist\DashBill-Setup-1.7.0.exe
 ```
 
 **That single file is what you publish.** See
@@ -520,15 +520,15 @@ this README. GitHub hosts the installer itself, with no size limit to worry
 about and no separate file-sharing account to keep in step — the release is the
 single place a version lives.
 
-1. **Bump the version.** Edit `version` in `package.json` — `1.6.0` → `1.6.1`.
+1. **Bump the version.** Edit `version` in `package.json` — `1.6.1` → `1.7.0`.
    This is the number the updater compares, so it must go up.
 2. **Build.** `npm run dist`.
 3. **Cut the release.** On GitHub: **Releases → Draft a new release**.
-   - Tag: `v1.6.1` (the leading `v` is fine, it is stripped when comparing).
+   - Tag: `v1.7.0` (the leading `v` is fine, it is stripped when comparing).
    - Title: something a person would read — "Signatures and the tutorial".
    - Body: the release notes. Plain text with `-` bullets, `**bold**` and
      `` `code` `` is all DashBill renders; anything else shows as text.
-   - Attach `DashBill-Setup-1.6.1.exe`, `latest.yml` and the `.blockmap`.
+   - Attach `DashBill-Setup-1.7.0.exe`, `latest.yml` and the `.blockmap`.
    - Leave **Set as a pre-release** unticked — pre-releases are ignored.
 4. **Publish.** Every installed copy sees it within half an hour, or at once if
    someone presses Check for updates.
@@ -539,7 +539,7 @@ single place a version lives.
 With the GitHub CLI the last two steps are one command:
 
 ```bash
-gh release create v1.6.1 "dist/DashBill-Setup-1.6.1.exe" "dist/latest.yml" "dist/DashBill-Setup-1.6.1.exe.blockmap" --title "Easier to read" --notes-file notes.md
+gh release create v1.7.0 "dist/DashBill-Setup-1.7.0.exe" "dist/latest.yml" "dist/DashBill-Setup-1.7.0.exe.blockmap" --title "Easier to read" --notes-file notes.md
 ```
 
 Schema changes apply automatically: `src/main/schema.sql` runs on every start-up
